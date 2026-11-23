@@ -21,8 +21,8 @@ import (
 const (
 	everyHost       = 2 * time.Second
 	everyContainers = 5 * time.Second
-	everyUnits      = 15 * time.Second
-	everyIndex      = 15 * time.Second
+	everyUnits      = 60 * time.Second
+	everyIndex      = 60 * time.Second
 	everyJob        = 3 * time.Second
 	everyJobFocused = 1 * time.Second
 	everyAPIRunners = 30 * time.Second
