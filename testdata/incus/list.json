@@ -1,0 +1,205 @@
+[
+  {
+    "architecture": "x86_64",
+    "name": "runner-base",
+    "status": "Stopped",
+    "status_code": 102,
+    "type": "container",
+    "project": "default",
+    "ephemeral": false,
+    "location": "none",
+    "created_at": "2026-11-23T17:28:19.664764863Z",
+    "state": {
+      "status": "Stopped",
+      "status_code": 102,
+      "pid": 0,
+      "processes": 0,
+      "cpu": {
+        "usage": 0,
+        "allocated_time": 0
+      },
+      "memory": {
+        "usage": 0,
+        "usage_peak": 0,
+        "total": 0,
+        "swap_usage": 0,
+        "swap_usage_peak": 0
+      },
+      "started_at": "0001-01-01T00:00:00Z"
+    }
+  },
+  {
+    "architecture": "x86_64",
+    "name": "runner-globex-1",
+    "status": "Running",
+    "status_code": 103,
+    "type": "container",
+    "project": "default",
+    "ephemeral": false,
+    "location": "none",
+    "created_at": "2026-11-23T17:32:09.402145642Z",
+    "state": {
+      "status": "Running",
+      "status_code": 103,
+      "pid": 27404,
+      "processes": 147,
+      "cpu": {
+        "usage": 391205937000,
+        "allocated_time": 4000000000
+      },
+      "memory": {
+        "usage": 670932992,
+        "usage_peak": 0,
+        "total": 15491836000,
+        "swap_usage": 56311808,
+        "swap_usage_peak": 0
+      },
+      "started_at": "2026-11-23T19:32:13.631553695+02:00"
+    }
+  },
+  {
+    "architecture": "x86_64",
+    "name": "runner-globex-2",
+    "status": "Running",
+    "status_code": 103,
+    "type": "container",
+    "project": "default",
+    "ephemeral": false,
+    "location": "none",
+    "created_at": "2026-11-23T17:32:20.6027614Z",
+    "state": {
+      "status": "Running",
+      "status_code": 103,
+      "pid": 28622,
+      "processes": 91,
+      "cpu": {
+        "usage": 711379191000,
+        "allocated_time": 4000000000
+      },
+      "memory": {
+        "usage": 2113564672,
+        "usage_peak": 0,
+        "total": 15491836000,
+        "swap_usage": 74436608,
+        "swap_usage_peak": 0
+      },
+      "started_at": "2026-11-23T19:32:24.974464846+02:00"
+    }
+  },
+  {
+    "architecture": "x86_64",
+    "name": "runner-globex-3",
+    "status": "Running",
+    "status_code": 103,
+    "type": "container",
+    "project": "default",
+    "ephemeral": false,
+    "location": "none",
+    "created_at": "2026-11-23T17:32:31.764645221Z",
+    "state": {
+      "status": "Running",
+      "status_code": 103,
+      "pid": 29844,
+      "processes": 70,
+      "cpu": {
+        "usage": 40410343000,
+        "allocated_time": 4000000000
+      },
+      "memory": {
+        "usage": 129568768,
+        "usage_peak": 0,
+        "total": 15491836000,
+        "swap_usage": 42504192,
+        "swap_usage_peak": 0
+      },
+      "started_at": "2026-11-23T19:32:36.181377063+02:00"
+    }
+  },
+  {
+    "architecture": "x86_64",
+    "name": "runner-acme-1",
+    "status": "Running",
+    "status_code": 103,
+    "type": "container",
+    "project": "default",
+    "ephemeral": false,
+    "location": "none",
+    "created_at": "2026-11-23T17:32:43.005731804Z",
+    "state": {
+      "status": "Running",
+      "status_code": 103,
+      "pid": 31066,
+      "processes": 74,
+      "cpu": {
+        "usage": 596075163000,
+        "allocated_time": 4000000000
+      },
+      "memory": {
+        "usage": 648888320,
+        "usage_peak": 0,
+        "total": 15491836000,
+        "swap_usage": 36851712,
+        "swap_usage_peak": 0
+      },
+      "started_at": "2026-11-23T19:32:47.446288825+02:00"
+    }
+  },
+  {
+    "architecture": "x86_64",
+    "name": "runner-acme-2",
+    "status": "Running",
+    "status_code": 103,
+    "type": "container",
+    "project": "default",
+    "ephemeral": false,
+    "location": "none",
+    "created_at": "2026-11-23T17:32:54.391905932Z",
+    "state": {
+      "status": "Running",
+      "status_code": 103,
+      "pid": 32291,
+      "processes": 65,
+      "cpu": {
+        "usage": 672290520000,
+        "allocated_time": 4000000000
+      },
+      "memory": {
+        "usage": 1558835200,
+        "usage_peak": 0,
+        "total": 15491836000,
+        "swap_usage": 41758720,
+        "swap_usage_peak": 0
+      },
+      "started_at": "2026-11-23T19:32:59.594193671+02:00"
+    }
+  },
+  {
+    "architecture": "x86_64",
+    "name": "runner-acme-3",
+    "status": "Running",
+    "status_code": 103,
+    "type": "container",
+    "project": "default",
+    "ephemeral": false,
+    "location": "none",
+    "created_at": "2026-11-23T17:33:06.749819753Z",
+    "state": {
+      "status": "Running",
+      "status_code": 103,
+      "pid": 33509,
+      "processes": 307,
+      "cpu": {
+        "usage": 2511876677000,
+        "allocated_time": 4000000000
+      },
+      "memory": {
+        "usage": 1864392704,
+        "usage_peak": 0,
+        "total": 15491836000,
+        "swap_usage": 50847744,
+        "swap_usage_peak": 0
+      },
+      "started_at": "2026-11-23T19:33:11.721098681+02:00"
+    }
+  }
+]
