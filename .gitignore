@@ -1,0 +1,4 @@
+/dist/
+/runrack
+*.test
+*.out
