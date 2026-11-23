@@ -1,0 +1,25 @@
+[2026-11-23 17:32:49Z INFO HostContext] No proxy settings were found based on environmental variables (http_proxy/https_proxy/HTTP_PROXY/HTTPS_PROXY)
+[2026-11-23 17:32:49Z INFO HostContext] Well known directory 'Bin': '/opt/actions-runner/bin'
+[2026-11-23 17:32:49Z INFO HostContext] Well known directory 'Root': '/opt/actions-runner'
+[2026-11-23 17:32:49Z INFO Listener] Runner is built for Linux (X64) - linux-x64.
+[2026-11-23 17:32:49Z INFO Listener] RuntimeInformation: Ubuntu 26.04.1 LTS.
+[2026-11-23 17:32:49Z INFO Listener] Version: 2.338.2
+[2026-11-23 17:32:49Z INFO Listener] Commit: d1eb12d4b115c301201de27d667284e1a80f2ab5
+[2026-11-23 17:32:49Z INFO Listener] Culture: en-US
+[2026-11-23 17:32:49Z INFO Listener] Validating directory permissions for: '/opt/actions-runner'
+[2026-11-23 17:32:49Z INFO CommandLineParser] Parse
+[2026-11-23 17:32:49Z INFO CommandLineParser] Adding Command: configure
+[2026-11-23 17:32:49Z INFO CommandLineParser] Adding flag: unattended
+[2026-11-23 17:32:49Z INFO CommandLineParser] Adding option 'url': 'https://github.com/acme'
+[2026-11-23 17:32:49Z INFO CommandLineParser] Adding option 'name': 'zenbook-acme-1'
+[2026-11-23 17:32:49Z INFO CommandLineParser] Adding option 'labels': 'homelab'
+[2026-11-23 17:32:49Z INFO CommandLineParser] Adding option 'work': '_work'
+[2026-11-23 17:33:20Z INFO Terminal] WRITE LINE: 2026-11-23 17:33:20Z: Listening for Jobs
+[2026-11-23 17:38:11Z INFO JobDispatcher] Job request 0 for plan d9963a11-75aa-83e9-a926-62632744322f job 377760b2-12b0-5774-8f85-8ee535fa5f51 received.
+[2026-11-23 17:38:11Z INFO Terminal] WRITE LINE: 2026-11-23 17:38:11Z: Running job: e2e
+[2026-11-23 17:38:11Z INFO JobDispatcher] Start renew job request 0 for job 377760b2-12b0-5774-8f85-8ee535fa5f51.
+[2026-11-23 17:38:11Z INFO JobDispatcher] Send job request message to worker for job 377760b2-12b0-5774-8f85-8ee535fa5f51.
+[2026-11-23 17:44:03Z INFO JobDispatcher] Worker finished for job 377760b2-12b0-5774-8f85-8ee535fa5f51. Code: 102
+[2026-11-23 17:44:03Z INFO JobDispatcher] finish job request for job 377760b2-12b0-5774-8f85-8ee535fa5f51 with result: Failed
+[2026-11-23 17:44:03Z INFO Terminal] WRITE LINE: 2026-11-23 17:44:03Z: Job e2e completed with result: Failed
+[2026-11-23 17:44:03Z INFO JobDispatcher] Stop renew job request for job 377760b2-12b0-5774-8f85-8ee535fa5f51.

@@ -1,0 +1,355 @@
+[2026-11-23 17:37:50Z INFO HostContext] No proxy settings were found based on environmental variables (http_proxy/https_proxy/HTTP_PROXY/HTTPS_PROXY)
+[2026-11-23 17:37:50Z INFO HostContext] Well known directory 'Bin': '/opt/actions-runner/bin'
+[2026-11-23 17:37:50Z INFO HostContext] Well known directory 'Root': '/opt/actions-runner'
+[2026-11-23 17:37:50Z INFO HostContext] Well known config file 'Credentials': '/opt/actions-runner/.credentials'
+[2026-11-23 17:37:50Z INFO HostContext] Well known directory 'Bin': '/opt/actions-runner/bin'
+[2026-11-23 17:37:50Z INFO HostContext] Well known directory 'Root': '/opt/actions-runner'
+[2026-11-23 17:37:50Z INFO HostContext] Well known config file 'Runner': '/opt/actions-runner/.runner'
+[2026-11-23 17:37:50Z INFO Worker] Version: 2.338.2
+[2026-11-23 17:37:50Z INFO Worker] Commit: d1eb12d4b115c301201de27d667284e1a80f2ab5
+[2026-11-23 17:37:50Z INFO Worker] Culture: 
+[2026-11-23 17:37:50Z INFO Worker] UI Culture: 
+[2026-11-23 17:37:50Z INFO Worker] Waiting to receive the job message from the channel.
+[2026-11-23 17:37:50Z INFO Worker] Message received.
+[2026-11-23 17:37:51Z INFO Worker] Job message:
+ {
+   "environmentVariables": [
+     {
+       "type": 2,
+       "file": 1,
+       "line": 12,
+       "col": 5,
+       "map": [
+         {
+           "key": "CI",
+           "value": "true"
+         }
+       ]
+     }
+   ],
+   "fileTable": [
+     ".github/workflows/ci.yml"
+   ],
+   "mask": [
+     {
+       "type": "regex",
+       "value": "***"
+     },
+     {
+       "type": "regex",
+       "value": "***"
+     }
+   ],
+   "steps": [
+     {
+       "type": "action",
+       "reference": {
+         "type": "repository",
+         "name": "actions/checkout",
+         "ref": "v7",
+         "repositoryType": "GitHub"
+       },
+       "contextName": "__actions_checkout",
+       "condition": "success()",
+       "id": "0b1f0a8e-0d11-4c2d-9e3f-2a1b0c9d8e7f",
+       "name": "__actions_checkout"
+     }
+   ],
+   "variables": {
+     "system.github.token": {
+       "value": "***",
+       "isSecret": true
+     },
+     "system.github.job": {
+       "value": "gitleaks"
+     },
+     "system.phaseDisplayName": {
+       "value": "gitleaks"
+     },
+     "DistributedTask.EnableCompositeActions": {
+       "value": "true"
+     }
+   },
+   "messageType": "PipelineAgentJobRequest",
+   "plan": {
+     "scopeIdentifier": "00000000-0000-0000-0000-000000000000",
+     "planType": "actions",
+     "version": 0,
+     "planId": "d9963a11-75aa-83e9-a926-62632744322f",
+     "planGroup": null,
+     "artifactUri": null,
+     "artifactLocation": null,
+     "definition": null,
+     "owner": null
+   },
+   "timeline": {
+     "id": "d9963a11-75aa-83e9-a926-62632744322f",
+     "changeId": 0,
+     "location": null
+   },
+   "jobId": "49c64655-1ab3-580b-9ddc-9f7c23f02b9a",
+   "jobDisplayName": "gitleaks",
+   "jobName": "__default",
+   "requestId": 0,
+   "lockedUntil": "0001-01-01T00:00:00",
+   "resources": {
+     "endpoints": [
+       {
+         "data": {
+           "ServerId": "",
+           "CacheServerUrl": "https://artifactcache.actions.githubusercontent.com/redacted/"
+         },
+         "name": "SystemVssConnection",
+         "url": "https://pipelines.actions.githubusercontent.com/redacted/",
+         "authorization": {
+           "parameters": {
+             "AccessToken": "***"
+           },
+           "scheme": "OAuth"
+         },
+         "isShared": false,
+         "isReady": true
+       }
+     ]
+   },
+   "contextData": {
+     "github": {
+       "t": 2,
+       "d": [
+         {
+           "k": "ref",
+           "v": "refs/heads/main"
+         },
+         {
+           "k": "sha",
+           "v": "4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f"
+         },
+         {
+           "k": "repository",
+           "v": "acme/widgets"
+         },
+         {
+           "k": "repository_owner",
+           "v": "acme"
+         },
+         {
+           "k": "repository_owner_id",
+           "v": "1000001"
+         },
+         {
+           "k": "repositoryUrl",
+           "v": "git://github.com/acme/widgets.git"
+         },
+         {
+           "k": "run_id",
+           "v": "45229130001"
+         },
+         {
+           "k": "run_number",
+           "v": "15"
+         },
+         {
+           "k": "retention_days",
+           "v": "90"
+         },
+         {
+           "k": "run_attempt",
+           "v": "1"
+         },
+         {
+           "k": "artifact_cache_size_limit",
+           "v": "10"
+         },
+         {
+           "k": "repository_visibility",
+           "v": "private"
+         },
+         {
+           "k": "actor_id",
+           "v": "583231"
+         },
+         {
+           "k": "actor",
+           "v": "octocat"
+         },
+         {
+           "k": "workflow",
+           "v": "CI"
+         },
+         {
+           "k": "head_ref",
+           "v": ""
+         },
+         {
+           "k": "base_ref",
+           "v": ""
+         },
+         {
+           "k": "event_name",
+           "v": "push"
+         },
+         {
+           "k": "server_url",
+           "v": "https://github.com"
+         },
+         {
+           "k": "api_url",
+           "v": "https://api.github.com"
+         },
+         {
+           "k": "graphql_url",
+           "v": "https://api.github.com/graphql"
+         },
+         {
+           "k": "ref_name",
+           "v": "main"
+         },
+         {
+           "k": "ref_protected",
+           "v": false
+         },
+         {
+           "k": "ref_type",
+           "v": "branch"
+         },
+         {
+           "k": "secret_source",
+           "v": "Actions"
+         },
+         {
+           "k": "event",
+           "v": {
+             "t": 2,
+             "d": [
+               {
+                 "k": "action",
+                 "v": "synchronize"
+               },
+               {
+                 "k": "number",
+                 "v": 14.0
+               }
+             ]
+           }
+         },
+         {
+           "k": "workflow_ref",
+           "v": "acme/widgets/.github/workflows/ci.yml@refs/heads/main"
+         },
+         {
+           "k": "workflow_sha",
+           "v": "4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f"
+         },
+         {
+           "k": "repository_id",
+           "v": "1000002"
+         },
+         {
+           "k": "triggering_actor",
+           "v": "octocat"
+         },
+         {
+           "k": "token",
+           "v": "***"
+         }
+       ]
+     },
+     "inputs": {
+       "t": 2
+     },
+     "job": {
+       "t": 2
+     },
+     "matrix": null,
+     "needs": {
+       "t": 2
+     },
+     "strategy": {
+       "t": 2,
+       "d": [
+         {
+           "k": "fail-fast",
+           "v": true
+         }
+       ]
+     },
+     "vars": {
+       "t": 2
+     }
+   },
+   "billingOwnerId": "U_kgDOAAAAAA"
+ }
+[2026-11-23 17:37:51Z INFO JobRunner] Job ID 49c64655-1ab3-580b-9ddc-9f7c23f02b9a
+[2026-11-23 17:37:51Z INFO JobRunner] Initializing launch client
+[2026-11-23 17:37:51Z INFO JobRunner] Starting the job execution context.
+[2026-11-23 17:37:51Z INFO JobRunner] Validating directory permissions for: '/opt/actions-runner/_work'
+[2026-11-23 17:37:51Z INFO JobRunner] Getting job extension.
+[2026-11-23 17:37:51Z INFO JobRunner] Initialize job. Getting all job steps.
+[2026-11-23 17:37:51Z INFO Worker] Listening for cancel message from the channel.
+[2026-11-23 17:37:51Z INFO Worker] Waiting for the job to complete or for a cancel message from the channel.
+[2026-11-23 17:37:52Z INFO JobRunner] Total job steps: 3.
+[2026-11-23 17:37:52Z INFO JobRunner] Run all job steps.
+[2026-11-23 17:37:52Z INFO StepsRunner] Processing step: DisplayName='Run actions/checkout@v7'
+[2026-11-23 17:37:52Z INFO StepsRunner] Evaluating: success()
+[2026-11-23 17:37:52Z INFO StepsRunner] Result: true
+[2026-11-23 17:37:52Z INFO StepsRunner] Starting the step.
+[2026-11-23 17:37:56Z INFO StepsRunner] Step result: 
+[2026-11-23 17:37:56Z INFO StepsRunner] No need for updating job result with current step result 'Succeeded'.
+[2026-11-23 17:37:56Z INFO StepsRunner] Current state: job state = ''
+[2026-11-23 17:37:56Z INFO StepsRunner] Processing step: DisplayName='Install gitleaks'
+[2026-11-23 17:37:56Z INFO StepsRunner] Evaluating: success()
+[2026-11-23 17:37:56Z INFO StepsRunner] Result: true
+[2026-11-23 17:37:56Z INFO StepsRunner] Starting the step.
+[2026-11-23 17:38:02Z INFO StepsRunner] Step result: 
+[2026-11-23 17:38:02Z INFO StepsRunner] No need for updating job result with current step result 'Succeeded'.
+[2026-11-23 17:38:02Z INFO StepsRunner] Current state: job state = ''
+[2026-11-23 17:38:02Z INFO StepsRunner] Processing step: DisplayName='Scan history for secrets'
+[2026-11-23 17:38:02Z INFO StepsRunner] Evaluating: success()
+[2026-11-23 17:38:02Z INFO StepsRunner] Result: true
+[2026-11-23 17:38:02Z INFO StepsRunner] Starting the step.
+[2026-11-23 17:38:03Z INFO StepsRunner] Step result: 
+[2026-11-23 17:38:03Z INFO StepsRunner] No need for updating job result with current step result 'Succeeded'.
+[2026-11-23 17:38:03Z INFO StepsRunner] Current state: job state = ''
+[2026-11-23 17:38:03Z INFO StepsRunner] Processing step: DisplayName='Post Run actions/checkout@v7'
+[2026-11-23 17:38:03Z INFO StepsRunner] Evaluating: always()
+[2026-11-23 17:38:03Z INFO StepsRunner] Result: true
+[2026-11-23 17:38:03Z INFO StepsRunner] Starting the step.
+[2026-11-23 17:38:03Z INFO StepsRunner] Step result: 
+[2026-11-23 17:38:03Z INFO StepsRunner] No need for updating job result with current step result 'Succeeded'.
+[2026-11-23 17:38:03Z INFO StepsRunner] Current state: job state = ''
+[2026-11-23 17:38:03Z INFO JobRunner] Finalize job.
+[2026-11-23 17:38:03Z INFO JobRunner] Job result after all job steps finish: Succeeded
+[2026-11-23 17:38:03Z INFO JobRunner] Completing the job execution context.
+[2026-11-23 17:38:03Z INFO JobRunner] Shutting down the job server queue.
+[2026-11-23 17:38:06Z INFO JobRunner] Raising job completed against run service
+[2026-11-23 17:38:08Z INFO Worker] Job completed.
+[2026-11-23 17:33:14Z INFO Listener] Runner is built for Linux (X64) - linux-x64.
+[2026-11-23 17:33:14Z INFO Listener] RuntimeInformation: Ubuntu 26.04.1 LTS.
+[2026-11-23 17:33:14Z INFO Listener] Version: 2.338.2
+[2026-11-23 17:33:14Z INFO Listener] Commit: d1eb12d4b115c301201de27d667284e1a80f2ab5
+[2026-11-23 17:33:14Z INFO Listener] Culture: 
+[2026-11-23 17:33:14Z INFO Listener] UI Culture: 
+[2026-11-23 17:33:14Z INFO Listener] Validating directory permissions for: '/opt/actions-runner'
+[2026-11-23 17:33:14Z INFO CommandLineParser] Parse
+[2026-11-23 17:33:14Z INFO CommandLineParser] Parsing 13 args
+[2026-11-23 17:33:14Z INFO CommandLineParser] parsing argument
+[2026-11-23 17:33:14Z INFO CommandLineParser] HasArgs: False
+[2026-11-23 17:33:14Z INFO CommandLineParser] Adding Command: configure
+[2026-11-23 17:33:14Z INFO CommandLineParser] parsing argument
+[2026-11-23 17:33:14Z INFO CommandLineParser] HasArgs: True
+[2026-11-23 17:33:14Z INFO CommandLineParser] arg: unattended
+[2026-11-23 17:33:14Z INFO CommandLineParser] parsing argument
+[2026-11-23 17:33:14Z INFO CommandLineParser] HasArgs: True
+[2026-11-23 17:33:14Z INFO CommandLineParser] arg: replace
+[2026-11-23 17:33:14Z INFO CommandLineParser] Adding flag: unattended
+[2026-11-23 17:33:14Z INFO CommandLineParser] parsing argument
+[2026-11-23 17:33:14Z INFO CommandLineParser] HasArgs: True
+[2026-11-23 17:33:14Z INFO CommandLineParser] arg: url
+[2026-11-23 17:33:14Z INFO CommandLineParser] Adding flag: replace
+[2026-11-23 17:33:14Z INFO CommandLineParser] parsing argument
+[2026-11-23 17:33:14Z INFO CommandLineParser] HasArgs: True
+[2026-11-23 17:33:14Z INFO CommandLineParser] Adding option 'url': 'https://github.com/acme'
+[2026-11-23 17:33:14Z INFO CommandLineParser] parsing argument
+[2026-11-23 17:33:14Z INFO CommandLineParser] HasArgs: True
+[2026-11-23 17:33:14Z INFO CommandLineParser] arg: token
+[2026-11-23 17:33:14Z INFO CommandLineParser] parsing argument
