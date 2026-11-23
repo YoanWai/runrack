@@ -1,0 +1,20 @@
+name: Provider request
+description: Ask runrack to show another kind of CI runner
+labels: [provider]
+body:
+  - type: input
+    id: runner
+    attributes:
+      label: Runner
+      description: For example GitLab Runner, Forgejo act_runner, Buildkite agent.
+    validations:
+      required: true
+  - type: textarea
+    id: local
+    attributes:
+      label: What it leaves on the machine
+      description: Process names, systemd units, config or log files, local HTTP endpoints. Anonymize names and never paste tokens.
+  - type: textarea
+    id: wanted
+    attributes:
+      label: What you want to see on the board

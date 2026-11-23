@@ -1,0 +1,31 @@
+name: Bug report
+description: runrack shows something wrong, misses a runner or fails to start
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: runrack doctor output
+      description: Run `runrack doctor` and paste the output. Remove anything private.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: runrack version
+      description: Output of `runrack version`.
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Setup
+      description: Distribution, terminal or console, how the runners run (host units, Incus, other).
