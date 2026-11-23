@@ -1,0 +1,95 @@
+{
+  "total_count": 3,
+  "runners": [
+    {
+      "id": 232,
+      "name": "zenbook-acme-1",
+      "os": "Linux",
+      "status": "online",
+      "busy": true,
+      "version": "2.338.2",
+      "labels": [
+        {
+          "id": 0,
+          "name": "self-hosted",
+          "type": "read-only"
+        },
+        {
+          "id": 0,
+          "name": "Linux",
+          "type": "read-only"
+        },
+        {
+          "id": 0,
+          "name": "X64",
+          "type": "read-only"
+        },
+        {
+          "id": 0,
+          "name": "homelab",
+          "type": "custom"
+        }
+      ]
+    },
+    {
+      "id": 233,
+      "name": "zenbook-acme-2",
+      "os": "Linux",
+      "status": "online",
+      "busy": true,
+      "version": "2.338.2",
+      "labels": [
+        {
+          "id": 0,
+          "name": "self-hosted",
+          "type": "read-only"
+        },
+        {
+          "id": 0,
+          "name": "Linux",
+          "type": "read-only"
+        },
+        {
+          "id": 0,
+          "name": "X64",
+          "type": "read-only"
+        },
+        {
+          "id": 0,
+          "name": "homelab",
+          "type": "custom"
+        }
+      ]
+    },
+    {
+      "id": 234,
+      "name": "zenbook-acme-3",
+      "os": "Linux",
+      "status": "online",
+      "busy": true,
+      "version": "2.338.2",
+      "labels": [
+        {
+          "id": 0,
+          "name": "self-hosted",
+          "type": "read-only"
+        },
+        {
+          "id": 0,
+          "name": "Linux",
+          "type": "read-only"
+        },
+        {
+          "id": 0,
+          "name": "X64",
+          "type": "read-only"
+        },
+        {
+          "id": 0,
+          "name": "homelab",
+          "type": "custom"
+        }
+      ]
+    }
+  ]
+}
