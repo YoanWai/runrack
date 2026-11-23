@@ -19,7 +19,6 @@ const DefaultAPI = "https://api.github.com"
 // ErrDisabled means the endpoint answered 401, 403 or 404 and stays off until Reset.
 var ErrDisabled = errors.New("endpoint disabled")
 
-// TokenSource returns the first token found and where it came from. The token itself is never shown.
 func TokenSource(getenv func(string) string, ghToken func() string) (token, source string) {
 	for _, name := range []string{"RUNRACK_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"} {
 		if value := strings.TrimSpace(getenv(name)); value != "" {
@@ -57,22 +56,10 @@ func NewClient(base, token string) *Client {
 	}
 }
 
-// Reset re-enables every disabled endpoint.
 func (c *Client) Reset() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.disabled = map[string]string{}
-}
-
-// Disabled lists why endpoints are off, for the footer and doctor.
-func (c *Client) Disabled() []string {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	var reasons []string
-	for _, reason := range c.disabled {
-		reasons = append(reasons, reason)
-	}
-	return reasons
 }
 
 func runnersPath(scope string) (path, label, hint string) {

@@ -39,7 +39,6 @@ func NewTheme(profile colorprofile.Profile) Theme {
 	return theme
 }
 
-// ParseColor turns --color into a profile. "auto" detects from the terminal.
 func ParseColor(flag string) (colorprofile.Profile, bool) {
 	switch flag {
 	case "none":

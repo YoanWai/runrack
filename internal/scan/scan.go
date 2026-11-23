@@ -52,7 +52,7 @@ func IsRunnerComm(comm string) bool {
 	return comm == CommListener || comm == CommWorker
 }
 
-// Scan walks procRoot once. Only runner processes get their cmdline and cgroup read.
+// Scan reads cmdline and cgroup only for runner processes, which keeps the 1s walk cheap.
 func Scan(procRoot string) ([]Proc, error) {
 	bootTime, err := BootTime(procRoot)
 	if err != nil {
@@ -127,7 +127,6 @@ func ParseCmdline(cmdline []byte) []string {
 	return strings.Split(trimmed, "\x00")
 }
 
-// ParseCgroup maps a cgroup v2 path to where the process runs.
 func ParseCgroup(cgroup []byte) Placement {
 	for line := range strings.SplitSeq(string(cgroup), "\n") {
 		path, ok := strings.CutPrefix(line, "0::")

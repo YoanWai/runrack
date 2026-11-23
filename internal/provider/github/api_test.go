@@ -74,8 +74,8 @@ func TestForbiddenDisablesEndpointUntilReset(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 	const footer = "api: org runners acme 403 (needs admin:org or Self-hosted runners: read)"
-	if !strings.Contains(err.Error(), footer) || client.Disabled()[0] != footer {
-		t.Fatalf("err %q, disabled %v", err, client.Disabled())
+	if !strings.Contains(err.Error(), footer) {
+		t.Fatalf("err %q", err)
 	}
 	_, _ = client.Runners(t.Context(), "acme")
 	if hits.Load() != 1 {

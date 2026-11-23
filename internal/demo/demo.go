@@ -9,7 +9,7 @@ import (
 
 const gib = 1 << 30
 
-// World is a made-up rack for --demo, tests and screenshots. Jobs started at start keep running as now moves.
+// World pins jobs to start, so elapsed times grow as now moves.
 func World(start, now time.Time) state.Snapshot {
 	start, now = start.UTC(), now.UTC()
 	at := func(offset time.Duration) time.Time { return start.Add(offset) }

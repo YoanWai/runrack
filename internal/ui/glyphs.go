@@ -37,7 +37,6 @@ var (
 	}
 )
 
-// ParseGlyphs turns --glyphs into a set. "auto" picks console on the Linux console.
 func ParseGlyphs(flag string) (Glyphs, bool) {
 	switch flag {
 	case "unicode":

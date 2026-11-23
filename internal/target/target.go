@@ -247,7 +247,6 @@ func ParseIncusList(data []byte) ([]Container, error) {
 	return containers, nil
 }
 
-// GHToken asks the gh CLI for its token. Empty when gh is missing or logged out.
 func GHToken(ctx context.Context) string {
 	if _, err := exec.LookPath("gh"); err != nil {
 		return ""

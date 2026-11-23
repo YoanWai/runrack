@@ -39,7 +39,6 @@ func ParseRunnerFile(data []byte) (runnerFile, error) {
 	return file, nil
 }
 
-// Scope turns gitHubUrl into org, owner/repo or enterprises/x. host is the server.
 func Scope(gitHubURL string) (scope, host string, err error) {
 	u, err := url.Parse(gitHubURL)
 	if err != nil {
@@ -178,7 +177,6 @@ type stepsAndResult struct {
 	FinishedAt time.Time
 }
 
-// ParseSteps reads the grep output of one Worker log: step starts and the final result line.
 func ParseSteps(lines []string) stepsAndResult {
 	var out stepsAndResult
 	for _, line := range lines {

@@ -17,7 +17,6 @@ const (
 	compactBelow = 80
 )
 
-// View holds everything a render needs besides the snapshot.
 type View struct {
 	Width, Height int // Height 0 means unbounded, for --once
 	Theme         Theme
@@ -88,7 +87,6 @@ func runnerHeight(r state.Runner, compact bool) int {
 	return 4
 }
 
-// Order lists runner keys as the board shows them, column by column, for keyboard movement.
 func Order(snap state.Snapshot, w int) [][]string {
 	gs := groups(snap)
 	cols := columns(w, len(gs))

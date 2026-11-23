@@ -9,7 +9,6 @@ import (
 	"github.com/YoanWai/runrack/internal/target"
 )
 
-// RunnerRef is a claimed runner: where it lives and which processes belong to it.
 type RunnerRef struct {
 	state.Presence
 	Root        string

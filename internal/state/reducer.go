@@ -10,7 +10,6 @@ import (
 
 const recentCap = 20
 
-// Presence is what one discovery pass knows about a runner without reading any file.
 type Presence struct {
 	Key         string
 	Provider    string
@@ -74,7 +73,7 @@ func NewReducer() *Reducer {
 	}
 }
 
-// Observe applies one discovery pass. It returns the jobs whose Worker just exited, by runner key.
+// Observe returns the jobs whose Worker just exited, by runner key.
 func (r *Reducer) Observe(presences []Presence, now time.Time) map[string]Job {
 	ended := map[string]Job{}
 	present := map[string]bool{}
@@ -143,7 +142,6 @@ func (r *Reducer) SetNote(key, note string) {
 	}
 }
 
-// SetCurrent fills the busy job with what its Worker log says so far.
 func (r *Reducer) SetCurrent(key string, job Job) {
 	e, ok := r.runners[key]
 	if !ok || e.runner.Job == nil {
@@ -220,7 +218,6 @@ func (r *Reducer) SetSource(name string, err error, now time.Time) {
 	s.LastOK = now.UTC()
 }
 
-// Busy lists the runners whose Worker is alive, for the job pollers.
 func (r *Reducer) Busy() map[string]Job {
 	busy := map[string]Job{}
 	for key, e := range r.runners {

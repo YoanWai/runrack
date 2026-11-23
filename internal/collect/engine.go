@@ -111,7 +111,6 @@ func New(opts Options) *Engine {
 	}
 }
 
-// Once runs every collector to completion and returns one snapshot.
 func (e *Engine) Once(ctx context.Context) state.Snapshot {
 	e.once = true
 	e.sampleHost(time.Now())
@@ -155,7 +154,6 @@ func publish(out chan state.Snapshot, snap state.Snapshot) {
 	out <- snap
 }
 
-// Refresh makes every source due now and re-enables disabled API endpoints.
 func (e *Engine) Refresh() {
 	e.control <- func() {
 		for _, s := range e.sched {
@@ -167,7 +165,6 @@ func (e *Engine) Refresh() {
 	}
 }
 
-// Focus polls the given runner's job every second while its detail view is open.
 func (e *Engine) Focus(key string) {
 	e.control <- func() { e.focus = key }
 }
@@ -409,7 +406,6 @@ func logName(result state.Result, logs []provider.LogFile) string {
 	return ""
 }
 
-// unread picks the Worker logs worth parsing: unseen, inside the history window, newest first.
 func unread(logs []provider.LogFile, finished map[string]bool, now time.Time) []provider.LogFile {
 	var out []provider.LogFile
 	for i := len(logs) - 1; i >= 0 && len(out) < historyPerRun; i-- {
@@ -421,7 +417,6 @@ func unread(logs []provider.LogFile, finished map[string]bool, now time.Time) []
 	return out
 }
 
-// closestLog matches a running Worker to the log whose filename time is nearest its start.
 func closestLog(logs []provider.LogFile, workerStart time.Time, busy bool) string {
 	if !busy {
 		return ""
@@ -638,14 +633,4 @@ func (e *Engine) barrier() {
 			}
 		}
 	}
-}
-
-// Targets lists the targets the engine knows about, for doctor.
-func (e *Engine) Targets() []string {
-	var ids []string
-	for id := range e.targetsWithHost() {
-		ids = append(ids, id)
-	}
-	slices.Sort(ids)
-	return ids
 }

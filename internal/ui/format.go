@@ -11,7 +11,6 @@ import (
 
 func width(s string) int { return lipgloss.Width(s) }
 
-// fit cuts a styled string to w cells, marking the cut with tail.
 func fit(s string, w int, tail string) string {
 	if w <= 0 {
 		return ""
