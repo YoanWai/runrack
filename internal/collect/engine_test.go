@@ -203,8 +203,11 @@ func TestContainerStopKeepsRunnersOfflineAndRemovalClearsErrors(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	os.WriteFile(filepath.Join(dir, "cpu.stat"), []byte("usage_usec 1000\n"), 0o644)
-	os.WriteFile(filepath.Join(dir, "memory.current"), []byte("4096\n"), 0o644)
+	for name, content := range map[string]string{"cpu.stat": "usage_usec 1000\n", "memory.current": "4096\n"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
 	e := New(Options{CgroupRoot: cgroups, ContainerGlob: "runner-*"})
 	id := target.IncusID(testContainer)
 
