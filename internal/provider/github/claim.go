@@ -5,6 +5,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/YoanWai/runrack/internal/provider"
 	"github.com/YoanWai/runrack/internal/scan"
@@ -27,7 +28,7 @@ func Claim(procs []scan.Proc, units map[string][]target.Unit) []provider.RunnerR
 			continue
 		}
 		root, ok := runnerRoot(p.Argv[0])
-		if !ok {
+		if !ok || !printable(root, p.Placement.Unit, p.Placement.Container, p.Placement.Project) {
 			continue
 		}
 		targetID := provider.TargetID(p.Placement)
@@ -52,7 +53,7 @@ func Claim(procs []scan.Proc, units map[string][]target.Unit) []provider.RunnerR
 	}
 	for targetID, list := range units {
 		for _, unit := range list {
-			if claimedUnits[targetID+"|"+unit.Name] {
+			if claimedUnits[targetID+"|"+unit.Name] || !printable(unit.Name) {
 				continue
 			}
 			ref := provider.RunnerRef{}
@@ -75,6 +76,16 @@ func runnerRoot(argv0 string) (string, bool) {
 	}
 	root := path.Dir(path.Dir(argv0))
 	return root, root != "/"
+}
+
+// printable rejects names a container can set (argv, cgroup paths) that would drive the terminal.
+func printable(values ...string) bool {
+	for _, value := range values {
+		if strings.IndexFunc(value, unicode.IsControl) >= 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func refKey(targetID, unit, root string) string {

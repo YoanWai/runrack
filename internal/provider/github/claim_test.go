@@ -189,3 +189,14 @@ func TestClaimKeepsUnsupportedPlacementsApart(t *testing.T) {
 		t.Fatalf("name %q target %q", refs[0].Name, refs[0].Target)
 	}
 }
+
+func TestClaimSkipsNamesWithControlCharacters(t *testing.T) {
+	procs := []scan.Proc{
+		{PID: 11, PPID: 1, Comm: scan.CommListener, Argv: []string{"/opt/\x1b]0;x\a/bin/Runner.Listener", "run"}, Placement: scan.Placement{Kind: scan.KindUnknown}},
+		{PID: 22, PPID: 1, Comm: scan.CommListener, Argv: []string{"/opt/actions-runner/bin/Runner.Listener", "run"}, Placement: scan.Placement{Kind: scan.KindIncus, Container: "runner-acme-1", Unit: "evil\x1b[2J.service"}},
+	}
+	units := map[string][]target.Unit{"incus:runner-acme-2": {{Name: "actions.runner.\x1b[31m.service", Active: "failed"}}}
+	if refs := Claim(procs, units); len(refs) != 0 {
+		t.Fatalf("refs %+v", refs)
+	}
+}
