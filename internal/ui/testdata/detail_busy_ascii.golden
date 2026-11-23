@@ -1,10 +1,10 @@
  [1mrunrack[m > zenbook-acme-1                                                                           esc back   17:42:07 
-+- [1mBUSY 02:31[m --------------------------------------------------------------------------------------------------------+
++- [1m BUSY 2:31 [m -------------------------------------------------------------------------------------------------------+
 | [1macme/widgets[m                                                                                                         |
 | CI > check                    run #16  attempt 1  pull_request  by octocat                                           |
 | PR #14  ci/homelab-runner -> main   c0a9cbb                                                                          |
 | fix: homelab runner labels                                                                                           |
-| [1m########################[m...... 02:31 / ~03:10                                                                        |
+| [1m########################[m...... 2:31 / ~3:10                                                                          |
 | https://github.com/acme/widgets/actions/runs/45229190085                                                             |
 +----------------------------------------------------------------------------------------------------------------------+
  [1mSTEPS[m                                                      [1mRUNNER[m
@@ -16,4 +16,4 @@
                                                             github     online, busy
 
  [1mRECENT ON THIS RUNNER[m
- 17:12  + success  acme/widgets  CI > check  main  1:58
+ 17:12  +  acme/widgets                        CI > check                          main                             1:58

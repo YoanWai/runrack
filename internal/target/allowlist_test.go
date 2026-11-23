@@ -5,9 +5,12 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCheckAllowsWhatTargetsBuild(t *testing.T) {
@@ -129,5 +132,38 @@ func TestParseIncusList(t *testing.T) {
 	}
 	if c := containers[6]; c.Name != "runner-acme-3" || c.Processes != 307 || c.MemBytes == 0 || c.CPUUsage == 0 {
 		t.Fatalf("last = %+v", c)
+	}
+}
+
+func TestHostReadsRefuseSymlinks(t *testing.T) {
+	dir := t.TempDir()
+	secret := filepath.Join(dir, "secret")
+	if err := os.WriteFile(secret, []byte("Job message: {}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "Worker_20261123-174638-utc.log")
+	if err := os.Symlink(secret, link); err != nil {
+		t.Fatal(err)
+	}
+	host := NewHost()
+	if _, err := host.Head(t.Context(), link, 10); err == nil {
+		t.Fatal("Head followed a symlink")
+	}
+	if _, err := host.Grep(t.Context(), link, GrepPatterns[0]); err == nil {
+		t.Fatal("Grep followed a symlink")
+	}
+	names, err := host.List(t.Context(), dir)
+	if err != nil || !slices.Equal(names, []string{"secret"}) {
+		t.Fatalf("List = %v, %v", names, err)
+	}
+}
+
+func TestParseCgroupUsage(t *testing.T) {
+	cpu, mem, err := ParseCgroupUsage([]byte("usage_usec 2500000\nuser_usec 1\n"), []byte("1048576\n"))
+	if err != nil || cpu != 2500*time.Millisecond || mem != 1<<20 {
+		t.Fatalf("cpu %v mem %d err %v", cpu, mem, err)
+	}
+	if _, _, err := ParseCgroupUsage([]byte("user_usec 1\n"), []byte("1\n")); err == nil {
+		t.Fatal("missing usage_usec must fail")
 	}
 }

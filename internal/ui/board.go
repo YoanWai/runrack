@@ -11,10 +11,12 @@ import (
 )
 
 const (
-	columnWidth  = 58
-	maxColumns   = 4
-	minRecent    = 3
-	compactBelow = 80
+	columnWidth     = 58
+	maxColumns      = 4
+	minRecent       = 3
+	compactBelow    = 80
+	narrowRecent    = 100
+	nameColumnWidth = 24
 )
 
 type View struct {
@@ -122,7 +124,14 @@ func Board(v View, snap state.Snapshot, now time.Time) string {
 		recentRows = min(recentRows, max(v.Height-fixed-len(board), minRecent))
 	}
 	lines = append(lines, "", sectionTitle(v, "RECENT"))
-	lines = append(lines, recentLines(v, snap, recentRows)...)
+	switch {
+	case snap.TakenAt.IsZero():
+		lines = append(lines, " "+v.Theme.Dim.Render("Loading history..."))
+	case len(snap.Recent) == 0:
+		lines = append(lines, " "+v.Theme.Dim.Render("No finished jobs in the last 24 hours."))
+	default:
+		lines = append(lines, recentLines(v, snap.Recent[:recentRows], v.Width >= narrowRecent)...)
+	}
 	bottom := append([]string{"", sectionTitle(v, "HOST")}, hostLines(v, snap)...)
 	bottom = append(bottom, footer(v, snap, now))
 	if v.Height > 0 {
@@ -154,7 +163,11 @@ func header(v View, snap state.Snapshot, now time.Time) string {
 		}
 	}
 	left := " " + t.Title.Render("runrack") + "  " + t.Dim.Render(snap.Host.Hostname)
-	counts := t.Busy.Render(fmt.Sprintf("%s %d busy", g.Busy, busy)) + "   " +
+	busyStyle := t.Busy
+	if busy == 0 {
+		busyStyle = t.Dim
+	}
+	counts := busyStyle.Render(fmt.Sprintf("%s %d busy", g.Busy, busy)) + "   " +
 		t.Idle.Render(fmt.Sprintf("%s %d idle", g.Idle, idle)) + "   " +
 		t.Offline.Render(fmt.Sprintf("%s %d offline", g.Offline, offline))
 	right := t.Text.Render(now.In(v.Loc).Format("Mon 2 Jan  15:04:05")) + " "
@@ -267,12 +280,23 @@ func conclusionGlyph(v View, conclusion string) (string, lipgloss.Style) {
 
 func (v View) selected(r state.Runner) bool { return v.ShowSelection && r.Key == v.Selected }
 
+// nameRow keeps the status next to the name, so the eye does not travel across a wide TV.
 func nameRow(v View, r state.Runner, right string, w int) string {
-	name := v.Theme.Text.Render(r.Name)
+	name := v.Theme.Title.Render(r.Name)
 	if v.selected(r) {
 		name = v.Theme.Text.Reverse(true).Bold(true).Render(r.Name)
 	}
-	return spread(statusGlyph(v, r)+" "+name, right, w, v.Glyphs.More)
+	left := statusGlyph(v, r) + " " + name
+	if r.Note != "" {
+		left += " " + v.Theme.Failure.Render("!")
+	}
+	right = fit(right, max(w-nameColumnWidth-2, w/2), v.Glyphs.More)
+	left = fit(left, w-width(right)-2, v.Glyphs.More)
+	return pad(left, min(nameColumnWidth, w-width(right)-2)) + "  " + right
+}
+
+func busyBadge(v View, elapsed time.Duration) string {
+	return v.Theme.BusyBadge.Render(" BUSY " + clock(elapsed) + " ")
 }
 
 func runnerLines(v View, r state.Runner, w int, now time.Time, compact bool) []string {
@@ -285,7 +309,7 @@ func runnerLines(v View, r state.Runner, w int, now time.Time, compact bool) []s
 	}
 	job := r.Job
 	elapsed := now.Sub(job.StartedAt)
-	lines := []string{nameRow(v, r, t.Busy.Render("BUSY  "+clock(elapsed)), w)}
+	lines := []string{nameRow(v, r, busyBadge(v, elapsed), w)}
 	if !job.HasMetadata() {
 		note := "starting"
 		if r.Note != "" {
@@ -324,10 +348,10 @@ func branchLine(job *state.Job, g Glyphs) string {
 }
 
 func idleRight(v View, r state.Runner, now time.Time) string {
-	right := v.Theme.Idle.Render("idle")
+	right := " " + v.Theme.Idle.Render("idle") // lines up with the text of the busy badge
 	if r.Last != nil {
 		glyph, style := conclusionGlyph(v, r.Last.Conclusion)
-		right += "   " + style.Render(glyph) + " " + v.Theme.Dim.Render(pad(fit(r.Last.Name, 12, v.Glyphs.More), 12)+fmt.Sprintf("%4s", age(now.Sub(r.Last.FinishedAt))))
+		right += "   " + style.Render(pad(glyph+" "+r.Last.Conclusion, 12)) + v.Theme.Dim.Render(fmt.Sprintf("%4s  ", age(now.Sub(r.Last.FinishedAt)))+fit(r.Last.Name, 16, v.Glyphs.More))
 	}
 	return right
 }
@@ -335,11 +359,11 @@ func idleRight(v View, r state.Runner, now time.Time) string {
 func listLine(v View, r state.Runner, w int, now time.Time) string {
 	if r.Status == state.StatusBusy && r.Job != nil && r.Job.HasMetadata() {
 		job := r.Job
-		right := v.Theme.Busy.Render(clock(now.Sub(job.StartedAt))) + " " + v.Theme.Dim.Render(job.Repo+" "+v.Glyphs.Sep+" "+job.Name)
+		right := busyBadge(v, now.Sub(job.StartedAt)) + " " + v.Theme.Dim.Render(job.Repo+" "+v.Glyphs.Sep+" "+job.Name)
 		return nameRow(v, r, right, w)
 	}
 	if r.Status == state.StatusBusy {
-		return nameRow(v, r, v.Theme.Busy.Render("BUSY "+clock(now.Sub(r.Job.StartedAt))), w)
+		return nameRow(v, r, busyBadge(v, now.Sub(r.Job.StartedAt)), w)
 	}
 	if r.Status == state.StatusOffline {
 		return nameRow(v, r, v.Theme.Offline.Render("offline "+r.Service), w)
@@ -347,25 +371,41 @@ func listLine(v View, r state.Runner, w int, now time.Time) string {
 	return nameRow(v, r, idleRight(v, r, now), w)
 }
 
-func recentLines(v View, snap state.Snapshot, rows int) []string {
+// recentLines prints one aligned row per result. Narrow screens drop the status word and the runner.
+func recentLines(v View, results []state.Result, wide bool) []string {
 	t, g := v.Theme, v.Glyphs
-	if len(snap.Recent) == 0 {
-		return []string{" " + t.Dim.Render("No finished jobs in the last 24 hours.")}
+	statusW, columns := 1, 6
+	if wide {
+		statusW, columns = 12, 7
 	}
-	flexible := max(v.Width-1-5-2-12-6-2*5, 32)
-	repoW, jobW, branchW := flexible*28/100, flexible*24/100, flexible*24/100
-	runnerW := flexible - repoW - jobW - branchW
+	flexible := max(v.Width-1-5-statusW-6-2*(columns-1), 32)
+	repoW, jobW := flexible*36/100, flexible*36/100
+	if wide {
+		repoW, jobW = flexible*28/100, flexible*24/100
+	}
+	branchW := flexible - repoW - jobW
+	runnerW := 0
+	if wide {
+		branchW = flexible * 24 / 100
+		runnerW = flexible - repoW - jobW - branchW
+	}
 	var lines []string
-	for _, res := range snap.Recent[:min(rows, len(snap.Recent))] {
+	for _, res := range results {
 		glyph, style := conclusionGlyph(v, res.Conclusion)
+		status := glyph
+		if wide {
+			status += " " + res.Conclusion
+		}
 		cells := []string{
 			t.Dim.Render(res.FinishedAt.In(v.Loc).Format("15:04")),
-			pad(style.Render(glyph+" "+res.Conclusion), 12),
+			pad(style.Render(status), statusW),
 			pad(t.Text.Render(fit(res.Repo, repoW, g.More)), repoW),
 			pad(t.Text.Render(fit(res.Workflow+" "+g.Sep+" "+res.Name, jobW, g.More)), jobW),
 			pad(t.Dim.Render(fit(res.Branch, branchW, g.More)), branchW),
-			t.Text.Render(fmt.Sprintf("%6s", short(time.Duration(res.Duration)))),
-			t.Dim.Render(fit(res.Runner, runnerW, g.More)),
+			t.Text.Render(fmt.Sprintf("%6s", clock(time.Duration(res.Duration)))),
+		}
+		if runnerW > 0 {
+			cells = append(cells, t.Dim.Render(fit(res.Runner, runnerW, g.More)))
 		}
 		lines = append(lines, " "+strings.Join(cells, "  "))
 	}
@@ -384,6 +424,9 @@ func loadStyle(t Theme, pct float64) lipgloss.Style {
 
 func hostLines(v View, snap state.Snapshot) []string {
 	t, g, h := v.Theme, v.Glyphs, snap.Host
+	if snap.TakenAt.IsZero() {
+		return []string{" " + t.Dim.Render("Reading host load..."), ""}
+	}
 	memPct := 0.0
 	if h.MemTotal > 0 {
 		memPct = 100 * float64(h.MemUsed) / float64(h.MemTotal)
@@ -411,22 +454,35 @@ func hostLines(v View, snap state.Snapshot) []string {
 func footer(v View, snap state.Snapshot, now time.Time) string {
 	t, g := v.Theme, v.Glyphs
 	keys := " " + t.Dim.Render(g.Keys+" select  enter detail  r refresh  ? help  q quit")
+	if v.Width < narrowRecent {
+		keys = " " + t.Dim.Render(g.Keys+" select  enter detail  ? help  q quit")
+	}
 	mode := "local"
 	if snap.API {
 		mode = "local + api"
 	}
 	stale := now.Sub(snap.TakenAt)
 	right := t.Dim.Render(fmt.Sprintf("%s   updated %ds ago ", mode, int(max(stale, 0).Seconds())))
-	if stale >= time.Minute {
+	switch {
+	case snap.TakenAt.IsZero():
+		right = t.Dim.Render("loading ")
+	case stale >= time.Minute:
 		right = t.Dim.Render(mode+"   updated ") + t.Busy.Render(age(stale)+" ago") + " "
 	}
 	if problem := firstProblem(snap); problem != "" {
-		right = t.Failure.Render("! "+problem) + "   " + right
+		room := max(v.Width-width(keys)-width(right)-4, 16)
+		right = t.Failure.Render(fit("! "+problem, room, g.More)) + "   " + right
 	}
 	return spread(keys, right, v.Width, g.More)
 }
 
+// firstProblem names a runner in words when it can, before the raw error of a source.
 func firstProblem(snap state.Snapshot) string {
+	for _, r := range snap.Runners {
+		if r.Note != "" {
+			return r.Name + ": " + r.Note
+		}
+	}
 	for _, s := range snap.Sources {
 		if !s.OK {
 			if strings.HasPrefix(s.LastError, "api: ") {

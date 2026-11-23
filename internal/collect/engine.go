@@ -19,23 +19,30 @@ import (
 )
 
 const (
-	everyHost       = 2 * time.Second
-	everyContainers = 5 * time.Second
-	everyUnits      = 60 * time.Second
-	everyIndex      = 60 * time.Second
-	everyJob        = 3 * time.Second
-	everyJobFocused = 1 * time.Second
-	everyAPIRunners = 30 * time.Second
-	everyAPIJobs    = 10 * time.Second
-	retryInspect    = 30 * time.Second
-	maxBackoff      = 60 * time.Second
-	historyWindow   = 24 * time.Hour
-	historyPerRun   = 20
-	deadLogAge      = time.Minute
+	everyHost           = 2 * time.Second
+	everyContainerStats = 5 * time.Second
+	everyContainerList  = 60 * time.Second
+	everyUnits          = 60 * time.Second
+	everyUnitsEmpty     = 10 * time.Minute
+	everyIndex          = 60 * time.Second
+	everyJob            = 3 * time.Second
+	everyJobFocused     = 1 * time.Second
+	everyAPIRunners     = 30 * time.Second
+	everyAPIJobs        = 10 * time.Second
+	retryInspect        = 30 * time.Second
+	maxBackoff          = 60 * time.Second
+	historyWindow       = 24 * time.Hour
+	historyPerRun       = 20
+	deadLogAge          = time.Minute
+	unreadableLogAge    = 10 * time.Minute
+	clockSkew           = 5 * time.Minute
+	warmupMax           = 10 * time.Second
+	noteLogsUnreadable  = "logs unreadable"
 )
 
 type Options struct {
 	ProcRoot      string
+	CgroupRoot    string
 	ContainerGlob string
 	API           *github.Client
 }
@@ -48,7 +55,7 @@ type schedule struct {
 
 type logIndex struct {
 	logs     []provider.LogFile
-	finished map[string]bool
+	finished map[string]time.Time
 	current  string
 }
 
@@ -61,19 +68,22 @@ type Engine struct {
 	sampler  *hoststat.Sampler
 	incus    bool
 
-	targets      map[string]target.Target
-	units        map[string][]target.Unit
-	refs         map[string]provider.RunnerRef
-	roots        map[string]string
-	inspected    map[string]int
-	index        map[string]*logIndex
-	cpuSamples   map[string]cpuSample
-	listenerSig  string
-	titled       map[int64]bool
-	scopes       map[string]bool
-	sched        map[string]*schedule
-	focus        string
-	lastHostRead time.Time
+	targets           map[string]target.Target
+	units             map[string][]target.Unit
+	refs              map[string]provider.RunnerRef
+	roots             map[string]string
+	inspected         map[string]int
+	index             map[string]*logIndex
+	cpuSamples        map[string]cpuSample
+	procCounts        map[string]int
+	listenerSig       string
+	titled            map[int64]bool
+	scopes            map[string]bool
+	sched             map[string]*schedule
+	focus             string
+	lastHostRead      time.Time
+	lastContainerRead time.Time
+	warm              bool
 
 	once    bool
 	pending sync.WaitGroup
@@ -103,6 +113,7 @@ func New(opts Options) *Engine {
 		inspected:  map[string]int{},
 		index:      map[string]*logIndex{},
 		cpuSamples: map[string]cpuSample{},
+		procCounts: map[string]int{},
 		titled:     map[int64]bool{},
 		scopes:     map[string]bool{},
 		sched:      map[string]*schedule{},
@@ -115,21 +126,19 @@ func (e *Engine) Once(ctx context.Context) state.Snapshot {
 	e.once = true
 	e.sampleHost(time.Now())
 	e.tick(ctx, time.Now())
-	if e.incus {
-		if apply, err := e.readContainers(ctx); err == nil {
-			apply() // a second sample turns container CPU time into a percentage
-		}
-	}
-	e.lastHostRead = time.Time{}
+	// second samples turn CPU time into a percentage
+	e.lastHostRead, e.lastContainerRead = time.Time{}, time.Time{}
 	e.sampleHost(time.Now())
+	e.sampleContainers(time.Now())
 	return e.red.Snapshot(time.Now())
 }
 
-// Run collects until ctx ends and sends a snapshot after every change. Slow readers only see the newest one.
+// Run collects until ctx ends and sends a snapshot each second once discovery settles. Slow readers only see the newest one.
 func (e *Engine) Run(ctx context.Context, out chan state.Snapshot) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
-	e.tick(ctx, time.Now())
+	start := time.Now()
+	e.tick(ctx, start)
 	for {
 		select {
 		case <-ctx.Done():
@@ -141,9 +150,38 @@ func (e *Engine) Run(ctx context.Context, out chan state.Snapshot) {
 			e.tick(ctx, time.Now())
 		case now := <-ticker.C:
 			e.tick(ctx, now)
+			e.warm = e.warm || e.settled() || now.Sub(start) > warmupMax
+			if e.warm {
+				publish(out, e.red.Snapshot(now))
+			}
 		}
-		publish(out, e.red.Snapshot(time.Now()))
 	}
+}
+
+// settled reports whether every runner found so far is identified and indexed, so the board never opens half built.
+func (e *Engine) settled() bool {
+	if e.incus && e.sched["incus list"] == nil {
+		return false
+	}
+	for _, s := range e.sched {
+		if s.inflight {
+			return false
+		}
+	}
+	for id := range e.targets {
+		if e.sched["units "+id] == nil {
+			return false
+		}
+	}
+	for key, ref := range e.refs {
+		if e.targetFor(ref) == nil {
+			continue
+		}
+		if e.sched["inspect "+key] == nil || (ref.Root != "" && e.sched["index "+key] == nil) {
+			return false
+		}
+	}
+	return true
 }
 
 func publish(out chan state.Snapshot, snap state.Snapshot) {
@@ -171,8 +209,9 @@ func (e *Engine) Focus(key string) {
 
 func (e *Engine) tick(ctx context.Context, now time.Time) {
 	e.sampleHost(now)
+	e.sampleContainers(now)
 	if e.incus && e.due("incus list", now) {
-		e.launch(ctx, "incus list", "incus list", everyContainers, e.readContainers)
+		e.launch(ctx, "incus list", "incus list", everyContainerList, e.readContainers)
 	}
 	e.barrier()
 	e.scheduleUnits(ctx, now)
@@ -186,6 +225,7 @@ func (e *Engine) tick(ctx context.Context, now time.Time) {
 	e.barrier()
 	e.scheduleAPI(ctx, now)
 	e.barrier()
+	e.prune(now)
 }
 
 func (e *Engine) sampleHost(now time.Time) {
@@ -200,6 +240,35 @@ func (e *Engine) sampleHost(now time.Time) {
 	}
 }
 
+func (e *Engine) sampleContainers(now time.Time) {
+	if now.Sub(e.lastContainerRead) < everyContainerStats {
+		return
+	}
+	e.lastContainerRead = now
+	stats := map[string]state.ContainerStats{}
+	var lastErr error
+	for _, t := range e.targets {
+		c, ok := t.(*target.IncusTarget)
+		if !ok {
+			continue
+		}
+		cpu, mem, err := target.CgroupUsage(e.opts.CgroupRoot, c.Container)
+		if err != nil {
+			lastErr = err
+			e.makeDue("incus list") // the container most likely stopped
+			continue
+		}
+		stat := state.ContainerStats{MemBytes: mem, Procs: e.procCounts[c.Container]}
+		if previous, ok := e.cpuSamples[c.Container]; ok && now.After(previous.at) {
+			stat.CPUPct = 100 * float64(cpu-previous.usage) / float64(now.Sub(previous.at))
+		}
+		e.cpuSamples[c.Container] = cpuSample{usage: cpu, at: now}
+		stats[c.Container] = stat
+	}
+	e.red.SetSource("container stats", lastErr, now)
+	e.red.SetContainers(stats)
+}
+
 func (e *Engine) discover(now time.Time) map[string]state.Job {
 	procs, err := scan.Scan(e.opts.ProcRoot)
 	e.red.SetSource("proc", err, now)
@@ -207,6 +276,7 @@ func (e *Engine) discover(now time.Time) map[string]state.Job {
 		return nil
 	}
 	refs := e.provider.Claim(procs, e.units)
+	previous := e.refs
 	e.refs = make(map[string]provider.RunnerRef, len(refs))
 	presences := make([]state.Presence, 0, len(refs))
 	var listeners []string
@@ -228,7 +298,73 @@ func (e *Engine) discover(now time.Time) map[string]state.Job {
 			e.makeDue("units " + id)
 		}
 	}
+	for key := range previous {
+		if _, ok := e.refs[key]; !ok {
+			e.forgetRunner(key)
+		}
+	}
 	return e.red.Observe(presences, now)
+}
+
+func (e *Engine) forgetRunner(key string) {
+	delete(e.index, key)
+	delete(e.roots, key)
+	delete(e.inspected, key)
+	for _, kind := range []string{"inspect ", "index ", "job ", "result "} {
+		delete(e.sched, kind+key)
+	}
+	shown := displayKey(key)
+	e.red.DropSources(func(name string) bool {
+		return name == "inspect "+shown || name == "index "+shown || name == "diag "+shown
+	})
+}
+
+func (e *Engine) forgetTarget(id string) {
+	delete(e.targets, id)
+	delete(e.sched, "units "+id)
+	e.red.DropSources(func(name string) bool {
+		return name == "units "+id || strings.HasPrefix(name, "inspect "+id+"/") ||
+			strings.HasPrefix(name, "index "+id+"/") || strings.HasPrefix(name, "diag "+id+"/")
+	})
+}
+
+// prune keeps an always-on board from growing: it forgets runs nobody is busy with and logs past the history window.
+func (e *Engine) prune(now time.Time) {
+	cutoff := now.Add(-historyWindow)
+	e.red.Prune(cutoff.Add(-time.Hour))
+	for _, idx := range e.index {
+		maps.DeleteFunc(idx.finished, func(_ string, started time.Time) bool { return started.Before(cutoff) })
+	}
+	busyRuns, busyRepos := map[string]bool{}, map[string]bool{}
+	for _, job := range e.red.Busy() {
+		busyRuns[strconv.FormatInt(job.RunID, 10)] = true
+		busyRepos[job.Repo] = true
+	}
+	for runID := range e.titled {
+		if !busyRuns[strconv.FormatInt(runID, 10)] {
+			delete(e.titled, runID)
+		}
+	}
+	maps.DeleteFunc(e.sched, func(name string, s *schedule) bool {
+		rest, ok := strings.CutPrefix(name, "api run ")
+		if !ok {
+			rest, ok = strings.CutPrefix(name, "api jobs ")
+			rest, _, _ = strings.Cut(rest, "/")
+		}
+		return ok && !s.inflight && !busyRuns[rest]
+	})
+	e.red.DropSources(func(name string) bool {
+		for _, prefix := range []string{"api jobs ", "api run "} {
+			if repo, ok := strings.CutPrefix(name, prefix); ok {
+				return !busyRepos[repo]
+			}
+		}
+		return false
+	})
+	maps.DeleteFunc(e.cpuSamples, func(container string, _ cpuSample) bool {
+		_, ok := e.targets[target.IncusID(container)]
+		return !ok
+	})
 }
 
 func (e *Engine) targetsWithHost() map[string]target.Target {
@@ -246,7 +382,7 @@ func (e *Engine) targetFor(ref provider.RunnerRef) target.Target {
 func (e *Engine) indexOf(key string) *logIndex {
 	idx, ok := e.index[key]
 	if !ok {
-		idx = &logIndex{finished: map[string]bool{}}
+		idx = &logIndex{finished: map[string]time.Time{}}
 		e.index[key] = idx
 	}
 	return idx
@@ -257,39 +393,53 @@ func (e *Engine) readContainers(ctx context.Context) (func(), error) {
 	if err != nil {
 		return nil, err
 	}
-	return func() { e.applyContainers(containers, time.Now()) }, nil
+	return func() { e.applyContainers(containers) }, nil
 }
 
-func (e *Engine) applyContainers(containers []target.Container, now time.Time) {
-	running := map[string]bool{}
-	stats := map[string]state.ContainerStats{}
+// applyContainers keeps a target per running container. A stopped one keeps its units, marked stopped, so its runners show offline.
+func (e *Engine) applyContainers(containers []target.Container) {
+	watched := map[string]target.Container{}
 	for _, c := range containers {
-		if c.Project != "default" && c.Project != "" {
-			continue
+		// the glob was validated by path.Match when the flags were parsed
+		if matched, _ := path.Match(e.opts.ContainerGlob, c.Name); matched && (c.Project == "default" || c.Project == "") {
+			watched[c.Name] = c
 		}
-		if ok, _ := path.Match(e.opts.ContainerGlob, c.Name); !ok || c.Status != "Running" {
-			continue
-		}
-		running[c.Name] = true
-		id := target.IncusID(c.Name)
-		if _, ok := e.targets[id]; !ok {
-			e.targets[id] = target.NewIncus(c.Name)
-			e.makeDue("units " + id)
-		}
-		stat := state.ContainerStats{MemBytes: c.MemBytes, Procs: c.Processes}
-		if previous, ok := e.cpuSamples[c.Name]; ok && now.After(previous.at) {
-			stat.CPUPct = 100 * float64(c.CPUUsage-previous.usage) / float64(now.Sub(previous.at))
-		}
-		e.cpuSamples[c.Name] = cpuSample{usage: c.CPUUsage, at: now}
-		stats[c.Name] = stat
 	}
 	for id, t := range e.targets {
-		if c, ok := t.(*target.IncusTarget); ok && !running[c.Container] {
-			delete(e.targets, id)
-			delete(e.units, id)
+		if c, ok := t.(*target.IncusTarget); ok && watched[c.Container].Status != "Running" {
+			e.forgetTarget(id)
 		}
 	}
-	e.red.SetContainers(stats)
+	for id, units := range e.units {
+		name, isContainer := strings.CutPrefix(id, "incus:")
+		c, listed := watched[name]
+		switch {
+		case !isContainer:
+		case !listed:
+			delete(e.units, id)
+		case c.Status != "Running":
+			e.units[id] = stoppedUnits(units, c.Status)
+		}
+	}
+	e.procCounts = map[string]int{}
+	for name, c := range watched {
+		e.procCounts[name] = c.Processes
+		id := target.IncusID(name)
+		if _, ok := e.targets[id]; !ok && c.Status == "Running" {
+			e.targets[id] = target.NewIncus(name)
+			e.makeDue("units " + id)
+		}
+	}
+	e.lastContainerRead = time.Time{}
+	e.sampleContainers(time.Now())
+}
+
+func stoppedUnits(units []target.Unit, containerStatus string) []target.Unit {
+	stopped := make([]target.Unit, len(units))
+	for i, unit := range units {
+		stopped[i] = target.Unit{Name: unit.Name, Active: "container " + strings.ToLower(containerStatus), Sub: "dead"}
+	}
+	return stopped
 }
 
 func (e *Engine) scheduleUnits(ctx context.Context, now time.Time) {
@@ -298,7 +448,11 @@ func (e *Engine) scheduleUnits(ctx context.Context, now time.Time) {
 		if !e.due(name, now) {
 			continue
 		}
-		e.launch(ctx, name, name, everyUnits, func(ctx context.Context) (func(), error) {
+		interval := everyUnits
+		if id != target.HostID && len(e.units[id]) == 0 {
+			interval = everyUnitsEmpty // a runner starting there shows up in /proc first, which makes this due again
+		}
+		e.launch(ctx, name, name, interval, func(ctx context.Context) (func(), error) {
 			units, err := t.Units(ctx)
 			if err != nil {
 				return nil, err
@@ -338,8 +492,8 @@ func (e *Engine) scheduleInspect(ctx context.Context, now time.Time) {
 				e.red.SetNote(key, "")
 				if info.DiagErr != nil {
 					e.red.SetNote(key, "no access to _diag")
-					e.red.SetSource("diag "+info.Name, info.DiagErr, time.Now())
 				}
+				e.red.SetSource("diag "+displayKey(key), info.DiagErr, time.Now())
 				if strings.HasPrefix(info.GitHubURL, "https://github.com/") {
 					e.scopes[info.Scope] = true
 				}
@@ -357,40 +511,49 @@ func (e *Engine) scheduleIndex(ctx context.Context, now time.Time) {
 		}
 		idx := e.indexOf(key)
 		finished := maps.Clone(idx.finished)
-		e.launch(ctx, name, "index "+displayKey(key), everyIndex, func(ctx context.Context) (func(), error) {
+		source := "index " + displayKey(key)
+		e.launch(ctx, name, source, everyIndex, func(ctx context.Context) (func(), error) {
 			logs, err := e.provider.WorkerLogs(ctx, t, ref)
 			if err != nil {
-				return nil, err
+				return func() { e.red.SetNote(key, noteLogsUnreadable) }, err
 			}
 			current := closestLog(logs, ref.WorkerStart, ref.WorkerPID != 0)
 			var results []state.Result
 			var running *state.Result
-			var dead []string
+			var dead []provider.LogFile
+			var unreadable error
 			for _, log := range unread(logs, finished, now) {
 				result, err := e.provider.ReadJob(ctx, t, ref, log)
-				if err != nil {
-					continue
-				}
 				switch {
+				case err != nil && log.Name != current && now.Sub(log.Started) > unreadableLogAge:
+					dead, unreadable = append(dead, log), err
+				case err != nil:
 				case result.Conclusion != "":
 					results = append(results, result)
 				case log.Name == current:
 					running = &result
 				case now.Sub(log.Started) > deadLogAge:
-					dead = append(dead, log.Name)
+					dead = append(dead, log)
 				}
 			}
 			return func() {
-				idx.logs, idx.current = logs, current
-				for _, result := range results {
-					idx.finished[logName(result, logs)] = true
+				idx.logs = logs
+				if e.refs[key].WorkerPID == ref.WorkerPID {
+					idx.current = current
 				}
-				for _, name := range dead {
-					idx.finished[name] = true
+				for _, result := range results {
+					idx.finished[logName(result, logs)] = result.StartedAt
+				}
+				for _, log := range dead {
+					idx.finished[log.Name] = log.Started
+				}
+				e.red.ClearNote(key, noteLogsUnreadable)
+				if unreadable != nil {
+					e.red.SetSource(source, unreadable, time.Now())
 				}
 				e.red.AddResults(key, results)
 				if running != nil {
-					e.red.SetCurrent(key, running.Job)
+					e.red.SetCurrent(key, ref.WorkerPID, running.Job)
 				}
 			}, nil
 		})
@@ -406,11 +569,12 @@ func logName(result state.Result, logs []provider.LogFile) string {
 	return ""
 }
 
-func unread(logs []provider.LogFile, finished map[string]bool, now time.Time) []provider.LogFile {
+func unread(logs []provider.LogFile, finished map[string]time.Time, now time.Time) []provider.LogFile {
 	var out []provider.LogFile
 	for i := len(logs) - 1; i >= 0 && len(out) < historyPerRun; i-- {
 		log := logs[i]
-		if !finished[log.Name] && now.Sub(log.Started) < historyWindow {
+		_, done := finished[log.Name]
+		if !done && now.Sub(log.Started) < historyWindow && log.Started.Before(now.Add(clockSkew)) {
 			out = append(out, log)
 		}
 	}
@@ -451,7 +615,7 @@ func (e *Engine) scheduleJobs(ctx context.Context, now time.Time, ended map[stri
 			}
 			return func() {
 				if result.Conclusion == "" {
-					e.red.SetCurrent(key, result.Job)
+					e.red.SetCurrent(key, ref.WorkerPID, result.Job)
 				}
 			}, nil
 		})
@@ -473,29 +637,35 @@ func (e *Engine) scheduleJobs(ctx context.Context, now time.Time, ended map[stri
 			result, err := e.readResult(ctx, t, ref, log)
 			return func() {
 				if result.Conclusion == "" {
+					// shown as unknown until the index reads the real conclusion, which then replaces it
+					if job.ID == "" && result.ID != "" {
+						job = result.Job
+					}
 					e.red.EndJob(key, job, state.ConclusionUnknown, time.Now())
+					e.makeDue("index " + key)
 					return
 				}
-				e.indexOf(key).finished[log.Name] = true
+				e.indexOf(key).finished[log.Name] = log.Started
 				e.red.AddResults(key, []state.Result{result})
 			}, err
 		})
 	}
 }
 
+// readResult retries while the Worker flushes its last lines. Without a conclusion it returns what it read.
 func (e *Engine) readResult(ctx context.Context, t target.Target, ref provider.RunnerRef, log provider.LogFile) (state.Result, error) {
-	var lastErr error
+	var result state.Result
+	var err error
 	for attempt := range 3 {
 		if attempt > 0 && !e.once {
 			time.Sleep(time.Second)
 		}
-		result, err := e.provider.ReadJob(ctx, t, ref, log)
+		result, err = e.provider.ReadJob(ctx, t, ref, log)
 		if err == nil && result.Conclusion != "" {
 			return result, nil
 		}
-		lastErr = err
 	}
-	return state.Result{}, lastErr
+	return result, err
 }
 
 func (e *Engine) logByName(idx *logIndex, name string) (provider.LogFile, bool) {
@@ -520,36 +690,40 @@ func (e *Engine) scheduleAPI(ctx context.Context, now time.Time) {
 		e.launch(ctx, name, name, everyAPIRunners, func(ctx context.Context) (func(), error) {
 			runners, err := api.Runners(ctx, scope)
 			if err != nil {
-				return nil, err
+				return func() { e.red.SetAPIRunners(scope, nil) }, err
 			}
 			return func() { e.red.SetAPIRunners(scope, runners) }, nil
 		})
 	}
-	runs := map[int64]state.Job{}
+	runs := map[state.RunAttempt]state.Job{}
 	for _, job := range e.red.Busy() {
 		if job.RunID != 0 && strings.HasPrefix(job.URL, "https://github.com/") {
-			runs[job.RunID] = job
+			runs[state.RunAttempt{RunID: job.RunID, Attempt: job.Attempt}] = job
 		}
 	}
-	for runID, job := range runs {
-		name := "api jobs " + strconv.FormatInt(runID, 10)
+	for run, job := range runs {
+		runID := strconv.FormatInt(run.RunID, 10)
+		name := "api jobs " + runID + "/" + strconv.Itoa(run.Attempt)
 		if e.due(name, now) {
 			e.launch(ctx, name, "api jobs "+job.Repo, everyAPIJobs, func(ctx context.Context) (func(), error) {
-				jobs, err := api.RunJobs(ctx, job.Repo, runID, job.Attempt)
+				jobs, err := api.RunJobs(ctx, job.Repo, run.RunID, run.Attempt)
 				if err != nil {
 					return nil, err
 				}
-				return func() { e.red.SetAPIJobs(runID, jobs) }, nil
+				return func() { e.red.SetAPIJobs(run, jobs) }, nil
 			})
 		}
-		if !e.titled[runID] {
-			e.titled[runID] = true
-			e.launch(ctx, "api run "+strconv.FormatInt(runID, 10), "", 0, func(ctx context.Context) (func(), error) {
-				title, err := api.RunTitle(ctx, job.Repo, runID)
+		name = "api run " + runID
+		if !e.titled[run.RunID] && e.due(name, now) {
+			e.launch(ctx, name, "api run "+job.Repo, everyAPIJobs, func(ctx context.Context) (func(), error) {
+				title, err := api.RunTitle(ctx, job.Repo, run.RunID)
 				if err != nil {
 					return nil, err
 				}
-				return func() { e.red.SetRunTitle(runID, title) }, nil
+				return func() {
+					e.titled[run.RunID] = true
+					e.red.SetRunTitle(run.RunID, title)
+				}, nil
 			})
 		}
 	}

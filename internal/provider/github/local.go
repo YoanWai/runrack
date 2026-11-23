@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/YoanWai/runrack/internal/state"
 )
@@ -36,7 +37,18 @@ func ParseRunnerFile(data []byte) (runnerFile, error) {
 	if file.AgentName == "" {
 		return runnerFile{}, errors.New(".runner: no agentName")
 	}
+	file.AgentName, file.GitHubURL = clean(file.AgentName), clean(file.GitHubURL)
 	return file, nil
+}
+
+// clean drops control characters, so text a workflow author controls cannot drive the terminal.
+func clean(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, s)
 }
 
 func Scope(gitHubURL string) (scope, host string, err error) {
@@ -71,15 +83,16 @@ func ParseRunnerLog(lines []string) runnerLogFacts {
 	var facts runnerLogFacts
 	for _, line := range lines {
 		if _, rest, ok := strings.Cut(line, patternVersion); ok {
-			facts.Version = strings.TrimSpace(rest)
+			facts.Version = clean(strings.TrimSpace(rest))
 		}
 		if _, rest, ok := strings.Cut(line, patternArch); ok {
-			facts.Arch, _, _ = strings.Cut(rest, ")")
+			arch, _, _ := strings.Cut(rest, ")")
+			facts.Arch = clean(arch)
 		}
 		if _, rest, ok := strings.Cut(line, patternLabels); ok {
 			facts.Labels = nil
 			for label := range strings.SplitSeq(strings.Trim(strings.TrimSpace(rest), "'"), ",") {
-				if label = strings.TrimSpace(label); label != "" {
+				if label = clean(strings.TrimSpace(label)); label != "" {
 					facts.Labels = append(facts.Labels, label)
 				}
 			}
@@ -126,20 +139,25 @@ func ParseJobMessage(head []byte) (state.Job, error) {
 	if start < 0 {
 		return state.Job{}, errors.New("worker log: Job message has no body")
 	}
+	body := head[marker+start:]
 	var msg jobMessage
-	if err := json.NewDecoder(bytes.NewReader(head[marker+start:])).Decode(&msg); err != nil {
-		return state.Job{}, fmt.Errorf("worker log: Job message: %w", err)
+	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&msg); err != nil {
+		salvaged, ok := salvageJobMessage(body)
+		if !ok {
+			return state.Job{}, fmt.Errorf("worker log: Job message: %w", err)
+		}
+		msg = salvaged
 	}
 	gh := map[string]string{}
 	for _, kv := range msg.ContextData.GitHub.D {
 		var value string
 		if githubContextKeys[kv.K] && json.Unmarshal(kv.V, &value) == nil {
-			gh[kv.K] = value
+			gh[kv.K] = clean(value)
 		}
 	}
 	job := state.Job{
-		ID:         msg.JobID,
-		Name:       msg.JobDisplayName,
+		ID:         clean(msg.JobID),
+		Name:       clean(msg.JobDisplayName),
 		Repo:       gh["repository"],
 		Workflow:   gh["workflow"],
 		Event:      gh["event_name"],
@@ -156,6 +174,22 @@ func ParseJobMessage(head []byte) (state.Job, error) {
 		job.URL = fmt.Sprintf("%s/%s/actions/runs/%d", gh["server_url"], job.Repo, job.RunID)
 	}
 	return job, nil
+}
+
+// salvageJobMessage decodes only the kept fields: the runner masks secrets after writing, and a mask can eat a closing quote.
+func salvageJobMessage(body []byte) (jobMessage, bool) {
+	var msg jobMessage
+	found := decodeAfter(body, `"jobDisplayName":`, &msg.JobDisplayName)
+	decodeAfter(body, `"jobId":`, &msg.JobID)
+	if i := bytes.Index(body, []byte(`"contextData":`)); i >= 0 {
+		decodeAfter(body[i:], `"github":`, &msg.ContextData.GitHub)
+	}
+	return msg, found && len(msg.ContextData.GitHub.D) > 0
+}
+
+func decodeAfter(body []byte, key string, out any) bool {
+	i := bytes.Index(body, []byte(key))
+	return i >= 0 && json.NewDecoder(bytes.NewReader(body[i+len(key):])).Decode(out) == nil
 }
 
 var pullRef = regexp.MustCompile(`^refs/pull/(\d+)/`)
@@ -186,12 +220,12 @@ func ParseSteps(lines []string) stepsAndResult {
 		}
 		if _, name, found := strings.Cut(message, "Processing step: DisplayName="); found {
 			out.closeLastStep(at)
-			out.Steps = append(out.Steps, state.Step{Name: strings.Trim(name, "'"), Status: state.StepInProgress, StartedAt: at})
+			out.Steps = append(out.Steps, state.Step{Name: clean(strings.Trim(name, "'")), Status: state.StepInProgress, StartedAt: at})
 			continue
 		}
 		if _, raw, found := strings.Cut(message, patternResult); found {
 			out.closeLastStep(at)
-			out.Conclusion = Conclusion(strings.TrimSpace(raw))
+			out.Conclusion = Conclusion(clean(strings.TrimSpace(raw)))
 			out.FinishedAt = at
 		}
 	}

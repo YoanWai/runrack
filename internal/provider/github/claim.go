@@ -1,7 +1,9 @@
 package github
 
 import (
+	"cmp"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/YoanWai/runrack/internal/provider"
@@ -31,6 +33,10 @@ func Claim(procs []scan.Proc, units map[string][]target.Unit) []provider.RunnerR
 		targetID := provider.TargetID(p.Placement)
 		ref := provider.RunnerRef{Root: root, ListenerPID: p.PID}
 		ref.Key = refKey(targetID, p.Placement.Unit, root)
+		if targetID == "" {
+			ref.Key += "|" + strconv.Itoa(p.PID) // runners in Docker or a user session share roots like /actions-runner
+		}
+		ref.Name = cmp.Or(p.Placement.Unit, root)
 		ref.Provider = providerName
 		ref.Target = targetID
 		ref.Placement = p.Placement
@@ -51,6 +57,7 @@ func Claim(procs []scan.Proc, units map[string][]target.Unit) []provider.RunnerR
 			}
 			ref := provider.RunnerRef{}
 			ref.Key = refKey(targetID, unit.Name, "")
+			ref.Name = unit.Name
 			ref.Provider = providerName
 			ref.Target = targetID
 			ref.Placement = placementOf(targetID, unit.Name)

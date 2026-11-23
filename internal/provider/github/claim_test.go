@@ -174,3 +174,18 @@ func TestWorkerLogsAndReadJob(t *testing.T) {
 		t.Fatalf("result %+v", result)
 	}
 }
+
+func TestClaimKeepsUnsupportedPlacementsApart(t *testing.T) {
+	docker := scan.Placement{Kind: scan.KindUnknown}
+	procs := []scan.Proc{
+		{PID: 11, PPID: 1, Comm: scan.CommListener, Argv: []string{"/actions-runner/bin/Runner.Listener", "run"}, Placement: docker},
+		{PID: 22, PPID: 1, Comm: scan.CommListener, Argv: []string{"/actions-runner/bin/Runner.Listener", "run"}, Placement: docker},
+	}
+	refs := Claim(procs, nil)
+	if len(refs) != 2 || refs[0].Key == refs[1].Key {
+		t.Fatalf("refs %+v", refs)
+	}
+	if refs[0].Name != "/actions-runner" || refs[0].Target != "" {
+		t.Fatalf("name %q target %q", refs[0].Name, refs[0].Target)
+	}
+}

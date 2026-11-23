@@ -100,8 +100,8 @@ func ParseStat(stat []byte) (Proc, error) {
 		return Proc{}, errors.New("stat: no comm")
 	}
 	pid, err := strconv.Atoi(strings.TrimSpace(string(stat[:open])))
-	if err != nil {
-		return Proc{}, fmt.Errorf("stat pid: %w", err)
+	if err != nil || pid <= 0 {
+		return Proc{}, fmt.Errorf("stat pid %q: %v", stat[:open], err)
 	}
 	rest := strings.Fields(string(stat[closeParen+1:]))
 	const starttimeIndex = 19 // field 22 minus pid, comm and state
@@ -148,6 +148,9 @@ func placementFromPath(path string) Placement {
 			// Incus names cannot contain "_", so the first one separates a non-default project.
 			if project, name, found := strings.Cut(container, "_"); found {
 				placement.Project, placement.Container = project, name
+			}
+			if placement.Container == "" {
+				return Placement{Kind: KindUnknown}
 			}
 			return placement
 		}

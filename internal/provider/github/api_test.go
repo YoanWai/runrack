@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/YoanWai/runrack/internal/state"
 )
@@ -127,5 +128,67 @@ func TestRunJobsAndTitle(t *testing.T) {
 	title, err := client.RunTitle(t.Context(), "acme/widgets", 45229190085)
 	if err != nil || title != "fix: homelab runner labels" {
 		t.Fatalf("title %q, err %v", title, err)
+	}
+}
+
+func TestRateLimitBacksOffInsteadOfDisabling(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status int
+		header [2]string
+	}{
+		{"429", http.StatusTooManyRequests, [2]string{"Retry-After", "60"}},
+		{"403 with exhausted quota", http.StatusForbidden, [2]string{"X-RateLimit-Remaining", "0"}},
+		{"403 with Retry-After", http.StatusForbidden, [2]string{"Retry-After", "30"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var hits atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				hits.Add(1)
+				w.Header().Set(tc.header[0], tc.header[1])
+				w.WriteHeader(tc.status)
+			}))
+			defer server.Close()
+			client := NewClient(server.URL, "t")
+			for range 2 {
+				_, err := client.Runners(t.Context(), "acme")
+				if err == nil || errors.Is(err, ErrDisabled) || !strings.Contains(err.Error(), "rate limited") {
+					t.Fatalf("err = %v", err)
+				}
+			}
+			if hits.Load() != 2 {
+				t.Fatalf("a rate limited endpoint must be asked again, got %d calls", hits.Load())
+			}
+		})
+	}
+}
+
+func TestDisabledEndpointComesBackAfterAWhile(t *testing.T) {
+	client := NewClient("http://127.0.0.1:0", "t")
+	client.disabled["org runners acme"] = disabled{reason: "403", until: time.Now().Add(-time.Second)}
+	_, err := client.Runners(t.Context(), "acme")
+	if errors.Is(err, ErrDisabled) {
+		t.Fatalf("expired disable still applies: %v", err)
+	}
+}
+
+func TestUntrustedRepoAndScopeNeverReachThePath(t *testing.T) {
+	var hits atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { hits.Add(1) }))
+	defer server.Close()
+	client := NewClient(server.URL, "t")
+	for _, repo := range []string{"acme", "acme/../../user", "acme/widgets?x=1", "a/b/c", "acme/w idgets", ".."} {
+		if _, err := client.RunJobs(t.Context(), repo, 1, 1); err == nil {
+			t.Errorf("RunJobs accepted %q", repo)
+		}
+		if _, err := client.RunTitle(t.Context(), repo, 1); err == nil {
+			t.Errorf("RunTitle accepted %q", repo)
+		}
+	}
+	if _, err := client.Runners(t.Context(), "acme/.."); err == nil {
+		t.Error("Runners accepted acme/..")
+	}
+	if hits.Load() != 0 {
+		t.Fatalf("%d requests went out", hits.Load())
 	}
 }

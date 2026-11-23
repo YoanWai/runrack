@@ -50,11 +50,7 @@ func Detail(v View, snap state.Snapshot, key string, now time.Time) string {
 	if len(mine) == 0 {
 		lines = append(lines, " "+t.Dim.Render("Nothing finished in the last 24 hours."))
 	}
-	for _, res := range mine {
-		glyph, style := conclusionGlyph(v, res.Conclusion)
-		lines = append(lines, " "+t.Dim.Render(res.FinishedAt.In(v.Loc).Format("15:04"))+"  "+style.Render(glyph+" "+res.Conclusion)+"  "+
-			t.Text.Render(res.Repo)+"  "+t.Text.Render(res.Workflow+" "+g.Sep+" "+res.Name)+"  "+t.Dim.Render(res.Branch)+"  "+t.Text.Render(short(time.Duration(res.Duration))))
-	}
+	lines = append(lines, recentLines(v, mine, false)...)
 	if v.Height > 0 && len(lines) > v.Height {
 		lines = lines[:v.Height]
 	}
@@ -111,9 +107,9 @@ func jobBox(v View, r state.Runner, now time.Time) []string {
 	if job.URL != "" {
 		body = append(body, t.Dim.Render(job.URL))
 	}
-	title := "BUSY " + clock(elapsed)
+	title := busyBadge(v, elapsed)
 	w := v.Width
-	top := t.Border.Render(g.TopLeft+g.Horizontal) + " " + t.Busy.Render(title) + " " + t.Border.Render(strings.Repeat(g.Horizontal, max(w-5-width(title)-1, 0))+g.TopRight)
+	top := t.Border.Render(g.TopLeft+g.Horizontal) + " " + title + " " + t.Border.Render(strings.Repeat(g.Horizontal, max(w-5-width(title)-1, 0))+g.TopRight)
 	lines := []string{top}
 	for _, line := range body {
 		lines = append(lines, t.Border.Render(g.Vertical)+" "+pad(fit(line, w-4, g.More), w-4)+" "+t.Border.Render(g.Vertical))
@@ -149,7 +145,7 @@ func stepLines(v View, job *state.Job, now time.Time) []string {
 		}
 		durationText := ""
 		if step.Status != state.StepPending {
-			durationText = short(took)
+			durationText = clock(took)
 		}
 		lines = append(lines, " "+glyph+" "+pad(fit(t.Text.Render(step.Name), 30, g.More), 31)+t.Dim.Render(durationText))
 	}
@@ -170,6 +166,8 @@ func runnerBlock(v View, r state.Runner) []string {
 		lines = append(lines, row("where", "incus "+r.Placement.Container))
 	case scan.KindHost:
 		lines = append(lines, row("where", "host"))
+	default:
+		lines = append(lines, row("where", "placement not supported, busy and idle only"))
 	}
 	if r.Version != "" {
 		lines = append(lines, row("version", r.Version))

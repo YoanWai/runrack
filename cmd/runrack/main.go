@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"time"
 
 	"github.com/YoanWai/runrack/internal/collect"
@@ -93,6 +94,10 @@ func parseFlags(args []string, stderr io.Writer) (options, error) {
 		fmt.Fprintf(stderr, "runrack: --glyphs must be auto, unicode, console or ascii\n")
 		return opts, errors.New("bad --glyphs")
 	}
+	if _, err := path.Match(opts.containers, ""); err != nil {
+		fmt.Fprintf(stderr, "runrack: --containers %q: %v\n", opts.containers, err)
+		return opts, errors.New("bad --containers")
+	}
 	if fs.NArg() > 0 {
 		fmt.Fprintf(stderr, "runrack: unexpected argument %q\n", fs.Arg(0))
 		return opts, errors.New("unexpected argument")
@@ -102,7 +107,7 @@ func parseFlags(args []string, stderr io.Writer) (options, error) {
 
 func newEngine(opts options) (*collect.Engine, string) {
 	client, source := apiClient(opts)
-	return collect.New(collect.Options{ProcRoot: "/proc", ContainerGlob: opts.containers, API: client}), source
+	return collect.New(collect.Options{ProcRoot: "/proc", CgroupRoot: "/sys/fs/cgroup", ContainerGlob: opts.containers, API: client}), source
 }
 
 func apiClient(opts options) (*github.Client, string) {

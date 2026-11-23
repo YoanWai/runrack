@@ -10,9 +10,11 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -47,15 +49,32 @@ func NewHost() *HostTarget { return &HostTarget{slots: make(chan struct{}, perTa
 func (h *HostTarget) ID() string { return HostID }
 
 func (h *HostTarget) Head(_ context.Context, path string, maxBytes int64) ([]byte, error) {
-	if err := CheckPath(path); err != nil {
-		return nil, err
-	}
-	f, err := os.Open(path)
+	f, err := openRegular(path)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 	return io.ReadAll(io.LimitReader(f, maxBytes))
+}
+
+// openRegular refuses symlinks: a job owns _diag and could point a log name at the runner's credentials.
+func openRegular(path string) (*os.File, error) {
+	if err := CheckPath(path); err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	if err != nil {
+		return nil, err
+	}
+	info, err := f.Stat()
+	if err == nil && !info.Mode().IsRegular() {
+		err = fmt.Errorf("%s is not a regular file", path)
+	}
+	if err != nil {
+		f.Close()
+		return nil, err
+	}
+	return f, nil
 }
 
 func (h *HostTarget) List(_ context.Context, dir string) ([]string, error) {
@@ -66,9 +85,11 @@ func (h *HostTarget) List(_ context.Context, dir string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	names := make([]string, len(entries))
-	for i, entry := range entries {
-		names[i] = entry.Name()
+	var names []string
+	for _, entry := range entries {
+		if entry.Type()&os.ModeSymlink == 0 {
+			names = append(names, entry.Name())
+		}
 	}
 	return names, nil
 }
@@ -77,10 +98,7 @@ func (h *HostTarget) Grep(_ context.Context, path string, fixed ...string) ([]st
 	if err := checkPatterns(fixed); err != nil {
 		return nil, err
 	}
-	if err := CheckPath(path); err != nil {
-		return nil, err
-	}
-	f, err := os.Open(path)
+	f, err := openRegular(path)
 	if err != nil {
 		return nil, err
 	}
@@ -245,6 +263,48 @@ func ParseIncusList(data []byte) ([]Container, error) {
 		containers = append(containers, c)
 	}
 	return containers, nil
+}
+
+// CgroupUsage reads a container's CPU time and memory from its cgroup on the host, which costs no incusd call.
+func CgroupUsage(cgroupRoot, container string) (cpu time.Duration, memBytes int64, err error) {
+	dir := filepath.Join(cgroupRoot, "lxc.payload."+container)
+	stat, err := os.ReadFile(filepath.Join(dir, "cpu.stat"))
+	if err != nil {
+		return 0, 0, err
+	}
+	mem, err := os.ReadFile(filepath.Join(dir, "memory.current"))
+	if err != nil {
+		return 0, 0, err
+	}
+	return ParseCgroupUsage(stat, mem)
+}
+
+func ParseCgroupUsage(cpuStat, memoryCurrent []byte) (time.Duration, int64, error) {
+	mem, err := strconv.ParseInt(strings.TrimSpace(string(memoryCurrent)), 10, 64)
+	if err != nil {
+		return 0, 0, fmt.Errorf("memory.current: %w", err)
+	}
+	for line := range strings.SplitSeq(string(cpuStat), "\n") {
+		if value, ok := strings.CutPrefix(line, "usage_usec "); ok {
+			usec, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+			if err != nil {
+				return 0, 0, fmt.Errorf("cpu.stat: %w", err)
+			}
+			return time.Duration(usec) * time.Microsecond, mem, nil
+		}
+	}
+	return 0, 0, errors.New("cpu.stat: no usage_usec")
+}
+
+var tmuxClientTermArgv = []string{"tmux", "display-message", "-p", "#{client_termname}"}
+
+// TmuxClientTerm is the TERM of the terminal the current tmux client runs in, or "" outside tmux.
+func TmuxClientTerm(ctx context.Context) string {
+	out, err := run(ctx, nil, tmuxClientTermArgv)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 func GHToken(ctx context.Context) string {

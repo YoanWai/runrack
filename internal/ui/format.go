@@ -42,18 +42,8 @@ func spread(left, right string, w int, tail string) string {
 	return pad(left, w-width(right)) + right
 }
 
-// clock formats an elapsed time as 02:31 or 1:02:31.
+// clock formats a duration as 0:55 or 1:02:31.
 func clock(d time.Duration) string {
-	d = max(d, 0).Round(time.Second)
-	h, m, s := int(d.Hours()), int(d.Minutes())%60, int(d.Seconds())%60
-	if h > 0 {
-		return fmt.Sprintf("%d:%02d:%02d", h, m, s)
-	}
-	return fmt.Sprintf("%02d:%02d", m, s)
-}
-
-// short formats a finished duration as 0:55 or 1:02:31.
-func short(d time.Duration) string {
 	d = max(d, 0).Round(time.Second)
 	h, m, s := int(d.Hours()), int(d.Minutes())%60, int(d.Seconds())%60
 	if h > 0 {

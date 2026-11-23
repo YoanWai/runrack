@@ -1,6 +1,13 @@
 package ui
 
-import "os"
+import (
+	"context"
+	"os"
+	"sync"
+	"time"
+
+	"github.com/YoanWai/runrack/internal/target"
+)
 
 type Glyphs struct {
 	Busy, Idle, Offline                   string
@@ -22,7 +29,7 @@ var (
 	}
 	// ConsoleGlyphs only uses runes in both the kernel's CP437 map and Terminus console fonts.
 	ConsoleGlyphs = Glyphs{
-		Busy: "■", Idle: "·", Offline: "x",
+		Busy: "■", Idle: "·", Offline: "▼",
 		Success: "√", Failure: "x", Cancelled: "-", Unknown: "?",
 		Step: ">", Done: "√", Pending: "·", Sep: ">", Arrow: "→", More: "~",
 		TopLeft: "┌", TopRight: "┐", BottomLeft: "└", BottomRight: "┘", Horizontal: "─", Vertical: "│",
@@ -46,10 +53,23 @@ func ParseGlyphs(flag string) (Glyphs, bool) {
 	case "ascii":
 		return ASCIIGlyphs, true
 	case "auto":
-		if os.Getenv("TERM") == "linux" {
+		if OnConsole() {
 			return ConsoleGlyphs, true
 		}
 		return UnicodeGlyphs, true
 	}
 	return Glyphs{}, false
 }
+
+// OnConsole reports whether output lands on a Linux console, directly or through a tmux client attached to one.
+var OnConsole = sync.OnceValue(func() bool {
+	if os.Getenv("TERM") == "linux" {
+		return true
+	}
+	if os.Getenv("TMUX") == "" {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	return target.TmuxClientTerm(ctx) == "linux"
+})

@@ -7,17 +7,17 @@
 
 
 
-                                       [36m┌───────────────────────────────────────┐[m
-                                       [36m│[m [1;37mKeys[m                                  [36m│[m
-                                       [36m│[m ←↑↓→ / hjkl    move selection         [36m│[m
-                                       [36m│[m enter          open detail            [36m│[m
-                                       [36m│[m esc            back                   [36m│[m
-                                       [36m│[m r              refresh now, retry API [36m│[m
-                                       [36m│[m ?              this help              [36m│[m
-                                       [36m│[m q              quit                   [36m│[m
-                                       [36m│[m                                       [36m│[m
-                                       [36m│[m [1;37mGlyphs[m                                [36m│[m
-                                       [36m│[m [1;33m■[m busy   [32m·[m idle   [37mx[m offline           [36m│[m
-                                       [36m│[m [32m√[m success   [1;31mx[m failure   [35m-[m cancelled   [36m│[m
-                                       [36m│[m [1;33m>[m current step   [37m·[m pending step       [36m│[m
-                                       [36m└───────────────────────────────────────┘[m
+                                       [37m┌───────────────────────────────────────┐[m
+                                       [37m│[m [1;37mKeys[m                                  [37m│[m
+                                       [37m│[m ←↑↓→ / hjkl    move selection         [37m│[m
+                                       [37m│[m enter          open detail            [37m│[m
+                                       [37m│[m esc            back                   [37m│[m
+                                       [37m│[m r              refresh now, retry API [37m│[m
+                                       [37m│[m ?              this help              [37m│[m
+                                       [37m│[m q              quit                   [37m│[m
+                                       [37m│[m                                       [37m│[m
+                                       [37m│[m [1;37mGlyphs[m                                [37m│[m
+                                       [37m│[m [1;33m■[m busy   [32m·[m idle   [37m▼[m offline           [37m│[m
+                                       [37m│[m [32m√[m success   [1;31mx[m failure   [35m-[m cancelled   [37m│[m
+                                       [37m│[m [1;33m>[m current step   [37m·[m pending step       [37m│[m
+                                       [37m└───────────────────────────────────────┘[m

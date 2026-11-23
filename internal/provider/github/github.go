@@ -18,6 +18,7 @@ const (
 	runnerFileMax  = 64 << 10
 	workerHeadMax  = 2 << 20
 	runnerLogLimit = 20
+	metadataMax    = 100
 )
 
 type Provider struct {
@@ -145,6 +146,9 @@ func (p *Provider) jobMetadata(ctx context.Context, t target.Target, logPath str
 		return state.Job{}, fmt.Errorf("%s: %w", path.Base(logPath), err)
 	}
 	p.mu.Lock()
+	if len(p.metadata) >= metadataMax {
+		p.metadata = map[string]state.Job{} // only live and unread logs are asked again, and they refill it
+	}
 	p.metadata[cacheKey] = job
 	p.mu.Unlock()
 	return job, nil

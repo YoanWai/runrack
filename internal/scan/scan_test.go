@@ -65,3 +65,27 @@ func TestScanReadsOnlyRunnerProcesses(t *testing.T) {
 		t.Fatalf("want 6 runner processes, got %d", len(procs))
 	}
 }
+
+func FuzzParseStat(f *testing.F) {
+	f.Add([]byte("4242 (odd (name) x) S 7 7 7 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 316247 0 0"))
+	f.Add([]byte("1 () S"))
+	f.Fuzz(func(t *testing.T, stat []byte) {
+		if proc, err := ParseStat(stat); err == nil && proc.PID <= 0 {
+			t.Fatalf("parsed nonsense %+v", proc)
+		}
+	})
+}
+
+func FuzzParseCgroup(f *testing.F) {
+	f.Add([]byte("0::/lxc.payload.lab_runner-globex-1/system.slice/actions.runner.globex.zenbook-globex-1.service\n"))
+	f.Add([]byte("0::/system.slice/docker-0123abcd.scope\n"))
+	f.Fuzz(func(t *testing.T, cgroup []byte) {
+		p := ParseCgroup(cgroup)
+		if p.Kind != KindHost && p.Kind != KindIncus && p.Kind != KindUnknown {
+			t.Fatalf("kind %q", p.Kind)
+		}
+		if p.Kind == KindIncus && p.Container == "" {
+			t.Fatalf("incus placement without a container: %+v", p)
+		}
+	})
+}

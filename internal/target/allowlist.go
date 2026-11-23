@@ -28,7 +28,8 @@ var (
 
 // Check is the safety boundary: every command runrack runs must pass it.
 func Check(argv []string) error {
-	if slices.Equal(argv, []string{"incus", "list", "-f", "json"}) || slices.Equal(argv, []string{"gh", "auth", "token"}) {
+	if slices.Equal(argv, []string{"incus", "list", "-f", "json"}) || slices.Equal(argv, []string{"gh", "auth", "token"}) ||
+		slices.Equal(argv, tmuxClientTermArgv) {
 		return nil
 	}
 	inner := argv

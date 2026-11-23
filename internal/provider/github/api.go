@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -16,8 +17,30 @@ import (
 
 const DefaultAPI = "https://api.github.com"
 
-// ErrDisabled means the endpoint answered 401, 403 or 404 and stays off until Reset.
+const (
+	disabledFor  = 15 * time.Minute
+	cacheEntries = 32
+	cacheBodyMax = 1 << 20
+)
+
+// ErrDisabled means the endpoint answered 401, 403 or 404 and stays off for disabledFor or until Reset.
 var ErrDisabled = errors.New("endpoint disabled")
+
+var slugPart = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
+
+// validSlug checks owner, owner/repo or enterprises/slug before it goes into an API path.
+func validSlug(s string, minParts int) bool {
+	parts := strings.Split(s, "/")
+	if len(parts) < minParts || len(parts) > 2 {
+		return false
+	}
+	for _, part := range parts {
+		if !slugPart.MatchString(part) || part == "." || part == ".." {
+			return false
+		}
+	}
+	return true
+}
 
 func TokenSource(getenv func(string) string, ghToken func() string) (token, source string) {
 	for _, name := range []string{"RUNRACK_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"} {
@@ -36,6 +59,11 @@ type cached struct {
 	body []byte
 }
 
+type disabled struct {
+	reason string
+	until  time.Time
+}
+
 type Client struct {
 	base  string
 	token string
@@ -43,7 +71,7 @@ type Client struct {
 
 	mu       sync.Mutex
 	cache    map[string]cached
-	disabled map[string]string
+	disabled map[string]disabled
 }
 
 func NewClient(base, token string) *Client {
@@ -52,14 +80,14 @@ func NewClient(base, token string) *Client {
 		token:    token,
 		http:     &http.Client{Timeout: 10 * time.Second},
 		cache:    map[string]cached{},
-		disabled: map[string]string{},
+		disabled: map[string]disabled{},
 	}
 }
 
 func (c *Client) Reset() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.disabled = map[string]string{}
+	c.disabled = map[string]disabled{}
 }
 
 func runnersPath(scope string) (path, label, hint string) {
@@ -73,6 +101,9 @@ func runnersPath(scope string) (path, label, hint string) {
 }
 
 func (c *Client) Runners(ctx context.Context, scope string) ([]state.APIRunner, error) {
+	if !validSlug(scope, 1) {
+		return nil, fmt.Errorf("api: scope %q is not an owner or owner/repo", scope)
+	}
 	path, label, hint := runnersPath(scope)
 	var body struct {
 		Runners []struct {
@@ -90,9 +121,9 @@ func (c *Client) Runners(ctx context.Context, scope string) ([]state.APIRunner, 
 	}
 	runners := make([]state.APIRunner, 0, len(body.Runners))
 	for _, r := range body.Runners {
-		runner := state.APIRunner{ID: r.ID, Name: r.Name, Status: r.Status, Busy: r.Busy}
+		runner := state.APIRunner{ID: r.ID, Name: clean(r.Name), Status: clean(r.Status), Busy: r.Busy}
 		for _, label := range r.Labels {
-			runner.Labels = append(runner.Labels, label.Name)
+			runner.Labels = append(runner.Labels, clean(label.Name))
 		}
 		runners = append(runners, runner)
 	}
@@ -100,6 +131,9 @@ func (c *Client) Runners(ctx context.Context, scope string) ([]state.APIRunner, 
 }
 
 func (c *Client) RunJobs(ctx context.Context, repo string, runID int64, attempt int) ([]state.APIJob, error) {
+	if err := checkRepo(repo); err != nil {
+		return nil, err
+	}
 	var body struct {
 		Jobs []struct {
 			Name       string `json:"name"`
@@ -120,14 +154,14 @@ func (c *Client) RunJobs(ctx context.Context, repo string, runID int64, attempt 
 	}
 	jobs := make([]state.APIJob, 0, len(body.Jobs))
 	for _, j := range body.Jobs {
-		job := state.APIJob{Name: j.Name, RunnerName: j.RunnerName, URL: j.HTMLURL}
+		job := state.APIJob{Name: clean(j.Name), RunnerName: clean(j.RunnerName), URL: clean(j.HTMLURL)}
 		for _, s := range j.Steps {
-			step := state.Step{Name: s.Name, Status: s.Status}
+			step := state.Step{Name: clean(s.Name), Status: clean(s.Status)}
 			if s.Status == "queued" || s.Status == "waiting" {
 				step.Status = state.StepPending
 			}
 			if s.Conclusion != nil {
-				step.Conclusion = *s.Conclusion
+				step.Conclusion = clean(*s.Conclusion)
 			}
 			if s.StartedAt != nil {
 				step.StartedAt = s.StartedAt.UTC()
@@ -143,6 +177,9 @@ func (c *Client) RunJobs(ctx context.Context, repo string, runID int64, attempt 
 }
 
 func (c *Client) RunTitle(ctx context.Context, repo string, runID int64) (string, error) {
+	if err := checkRepo(repo); err != nil {
+		return "", err
+	}
 	var body struct {
 		DisplayTitle string `json:"display_title"`
 	}
@@ -150,16 +187,23 @@ func (c *Client) RunTitle(ctx context.Context, repo string, runID int64) (string
 	if err := c.get(ctx, "run "+repo, "needs repo or Actions: read", path, &body); err != nil {
 		return "", err
 	}
-	return body.DisplayTitle, nil
+	return clean(body.DisplayTitle), nil
+}
+
+func checkRepo(repo string) error {
+	if !validSlug(repo, 2) {
+		return fmt.Errorf("api: repo %q is not owner/name", repo)
+	}
+	return nil
 }
 
 func (c *Client) get(ctx context.Context, endpoint, hint, path string, out any) error {
 	c.mu.Lock()
-	reason, off := c.disabled[endpoint]
+	off, isOff := c.disabled[endpoint]
 	previous := c.cache[path]
 	c.mu.Unlock()
-	if off {
-		return fmt.Errorf("%w: %s", ErrDisabled, reason)
+	if isOff && time.Now().Before(off.until) {
+		return fmt.Errorf("%w: %s", ErrDisabled, off.reason)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+path, nil)
 	if err != nil {
@@ -183,21 +227,34 @@ func (c *Client) get(ctx context.Context, endpoint, hint, path string, out any) 
 	switch {
 	case resp.StatusCode == http.StatusNotModified:
 		body = previous.body
+	case rateLimited(resp):
+		return fmt.Errorf("api: %s rate limited (%d)", endpoint, resp.StatusCode)
 	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusNotFound:
 		reason := fmt.Sprintf("api: %s %d (%s)", endpoint, resp.StatusCode, hint)
 		c.mu.Lock()
-		c.disabled[endpoint] = reason
+		c.disabled[endpoint] = disabled{reason: reason, until: time.Now().Add(disabledFor)}
 		c.mu.Unlock()
 		return fmt.Errorf("%w: %s", ErrDisabled, reason)
 	case resp.StatusCode != http.StatusOK:
 		return fmt.Errorf("api: %s %d", endpoint, resp.StatusCode)
 	default:
 		c.mu.Lock()
-		if len(c.cache) > 200 {
+		if len(c.cache) >= cacheEntries {
 			c.cache = map[string]cached{} // finished runs are never asked again, so start over instead of tracking them
 		}
-		c.cache[path] = cached{etag: resp.Header.Get("ETag"), body: body}
+		if len(body) <= cacheBodyMax {
+			c.cache[path] = cached{etag: resp.Header.Get("ETag"), body: body}
+		}
 		c.mu.Unlock()
 	}
 	return json.Unmarshal(body, out)
+}
+
+// rateLimited follows GitHub's docs: a 429, or a 403 that carries Retry-After or an exhausted quota.
+func rateLimited(resp *http.Response) bool {
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return true
+	}
+	return resp.StatusCode == http.StatusForbidden &&
+		(resp.Header.Get("Retry-After") != "" || resp.Header.Get("X-RateLimit-Remaining") == "0")
 }

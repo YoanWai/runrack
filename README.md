@@ -13,7 +13,8 @@ It never changes anything. No start, stop, restart, register or cleanup, and no 
 | Runner | Status |
 |---|---|
 | GitHub Actions self-hosted runner on the host (systemd unit) | supported |
-| GitHub Actions self-hosted runner inside Incus or LXC system containers | supported |
+| GitHub Actions self-hosted runner inside Incus system containers (default project) | supported |
+| GitHub Actions self-hosted runner in Docker or a user session | busy and idle only |
 | GitLab Runner, Forgejo and Gitea act_runner, Woodpecker, Buildkite, Jenkins, Azure Pipelines | planned, see [docs/providers.md](docs/providers.md) |
 
 Linux only for now. Discovery reads `/proc` and cgroup v2.
@@ -46,7 +47,7 @@ runrack --demo          # a made-up rack, to try it without runners
 |---|---|
 | `--no-api` | local data only, even when a token is around |
 | `--color auto\|none\|16\|256\|truecolor` | color profile, detected by default |
-| `--glyphs auto\|unicode\|console\|ascii` | symbol set, `console` on the Linux console |
+| `--glyphs auto\|unicode\|console\|ascii` | symbol set, `console` on the Linux console, also inside a tmux attached to it |
 | `--containers GLOB` | only look inside Incus containers matching the glob |
 | `--timeout 10s` | time limit for `--json`, `--once` and `doctor` |
 | `--width N` | board width for `--once` |
@@ -61,14 +62,15 @@ Keys: arrows or `hjkl` move, `enter` opens a runner, `esc` goes back, `r` refres
 |---|---|---|
 | `/proc/<pid>/stat` for every process | find `Runner.Listener` and `Runner.Worker` by process name, busy or idle, elapsed time | every second |
 | `/proc/<pid>/cmdline` and `cgroup` of runner processes only | runner directory, host unit or container | every second |
-| `systemctl list-units 'actions.runner.*'` on the host and in each container | runners that are stopped or failed | every minute, and when a runner restarts |
-| `incus list -f json` | containers, their CPU, memory and process count | every 5 seconds |
+| `systemctl list-units 'actions.runner.*'` on the host and in each container | runners that are stopped or failed | every minute where runners were found, every 10 minutes elsewhere, and when a runner restarts |
+| `incus list -f json` | containers, their state and process count | every minute, and when a container's cgroup disappears |
+| `/sys/fs/cgroup/lxc.payload.<container>/cpu.stat` and `memory.current` | container CPU and memory | every 5 seconds |
 | `<runner>/.runner` | runner name, id and GitHub scope | once per runner start |
 | `<runner>/_diag/Runner_*.log` | runner version and configured labels | once per runner start |
 | `<runner>/_diag/Worker_*.log` | repository, workflow, job, branch, actor, steps and result | when a job starts, every 3 seconds while it runs, every minute for history |
 | `/proc/loadavg`, `/proc/stat`, `/proc/meminfo` | host load strip | every 2 seconds |
 
-Inside containers runrack runs `incus exec <container> -- head|ls|grep|systemctl ...` with a fixed argument list. Every command goes through one allowlist, and runrack never reads `.credentials`, `.credentials_rsaparams`, `.env` or `.path`. From the Worker log's job message it keeps only the repository, workflow, run, ref, event, actor and commit fields. Everything else in that message, masked secrets included, is skipped by the JSON decoder and never stored or printed.
+Inside containers runrack runs `incus exec <container> -- head|ls|grep|systemctl ...` with a fixed argument list. Inside tmux it asks `tmux display-message` which terminal the client runs in. Every command goes through one allowlist, and runrack never reads `.credentials`, `.credentials_rsaparams`, `.env` or `.path`. On the host it refuses to follow symlinks in runner directories. Text from logs and the API is stripped of control characters before it reaches the screen. From the Worker log's job message it keeps only the repository, workflow, run, ref, event, actor and commit fields. Everything else in that message, masked secrets included, is skipped by the JSON decoder and never stored or printed.
 
 ## Permissions
 
@@ -77,35 +79,47 @@ Inside containers runrack runs `incus exec <container> -- head|ls|grep|systemctl
 - **GitHub token (optional):** first found of `RUNRACK_GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_TOKEN`, then `gh auth token`. The token is never printed.
   - Org runners: fine-grained "Self-hosted runners: read", or classic `admin:org`. A default `gh auth login` token has no `admin:org`, so that endpoint answers 403 and the footer says so.
   - Runs and jobs: fine-grained "Actions: read", or classic `repo`.
-  - When an endpoint answers 401, 403 or 404 it stays off until you press `r`.
+  - When an endpoint answers 401, 403 or 404 it stays off for 15 minutes, or until you press `r`. A rate limit only slows the polling down.
 
 ## Run it on a TV console
 
-runrack lays out to the terminal size, from 80x24 up to a 240x75 framebuffer console. On the Linux console use the console glyph set and the 16 color profile:
+runrack lays out to the terminal size, from 80x24 up to a 4K console (240x67 with the 16x32 Terminus font). On the Linux console, or in tmux attached to it, `auto` picks the console glyph set and the 16 color profile. To force them:
 
 ```sh
 runrack --glyphs console --color 16
 ```
 
-The console set only uses symbols that the kernel's default map and Terminus console fonts can draw. Colors stay within the 8 base colors, because a 512 glyph console font (such as the default `Uni2-TerminusBold24x12`) spends the bright bit on glyphs. A 256 glyph font such as `Lat15-TerminusBold24x12` gives the full 16 back.
+The console set only uses symbols that the kernel's default map and Terminus console fonts can draw. Colors stay within the 8 base colors, because a 512 glyph console font (such as `Uni2-TerminusBold32x16`) spends the bright bit on glyphs. That is also why a busy runner gets a filled badge: yellow text turns brown there. A 256 glyph font such as `Lat15-TerminusBold32x16` gives the full 16 colors back.
 
-To start it on boot, log tty1 in automatically and run runrack from the login profile:
+To start it on boot, run it as a service that owns tty1. No login shell is involved, so a missing binary leaves a failed service instead of an open shell on the TV keyboard:
 
 ```ini
-# /etc/systemd/system/getty@tty1.service.d/autologin.conf
+# /etc/systemd/system/runrack-tv.service
+[Unit]
+Description=runrack on the TV
+After=getty@tty1.service
+Conflicts=getty@tty1.service
+
 [Service]
-ExecStart=
-ExecStart=-/sbin/agetty --autologin <user> --noclear %I $TERM
+User=<user>
+Environment=TERM=linux
+ExecStart=/home/<user>/.local/bin/runrack
+StandardInput=tty
+StandardOutput=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
 ```
 
 ```sh
-# ~/.profile
-if [ "$(tty)" = /dev/tty1 ]; then
-  exec ~/.local/bin/runrack --glyphs console --color 16
-fi
+sudo systemctl daemon-reload
+sudo systemctl enable --now runrack-tv
 ```
-
-If the TV only shows part of the console (for example a 1920x1080 output on a larger framebuffer), shrink the terminal first with `stty cols 160 rows 45` before `exec runrack`.
 
 ![runrack board in a truecolor terminal](docs/board.png)
 

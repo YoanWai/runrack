@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode"
 
 	"github.com/YoanWai/runrack/internal/state"
 )
@@ -178,5 +179,63 @@ func TestWorkerLogTime(t *testing.T) {
 	}
 	if _, ok := WorkerLogTime("Runner_20261123-174638-utc.log"); ok {
 		t.Fatal("Runner logs are not Worker logs")
+	}
+}
+
+func TestTerminalControlsAreStripped(t *testing.T) {
+	const evil = "e2e\x1b]52;c;cHduZWQ=\x07\x1b[2J\x1b]0;owned\x07\u009b31m\r"
+	quoted, _ := json.Marshal(evil)
+	head := bytes.Replace(fixture(t, "github/Worker_20261123-173811-utc.log"), []byte(`"jobDisplayName": "e2e"`), append([]byte(`"jobDisplayName": `), quoted...), 1)
+	job, err := ParseJobMessage(head)
+	if err != nil {
+		t.Fatal(err)
+	}
+	steps := ParseSteps([]string{"[2026-11-23 17:38:15Z INFO StepsRunner] Processing step: DisplayName='Run \x1b[2Jcheckout'"})
+	facts := ParseRunnerLog([]string{"[2026-11-23 17:32:49Z INFO Listener] Version: 2.338.2\x1b]0;x\x07"})
+	for _, got := range []string{job.Name, steps.Steps[0].Name, facts.Version} {
+		if strings.ContainsFunc(got, unicode.IsControl) {
+			t.Fatalf("control characters survived: %q", got)
+		}
+	}
+	if !strings.HasPrefix(job.Name, "e2e]52;c;") {
+		t.Fatalf("visible text must stay: %q", job.Name)
+	}
+}
+
+func FuzzParseJobMessage(f *testing.F) {
+	f.Add([]byte("Job message:\n{\"jobDisplayName\":\"x\",\"contextData\":{\"github\":{\"d\":[{\"k\":\"repository\",\"v\":\"a/b\"}]}}}"))
+	f.Add([]byte("Job message: {"))
+	f.Fuzz(func(t *testing.T, head []byte) {
+		job, err := ParseJobMessage(head)
+		if err != nil {
+			return
+		}
+		for _, text := range []string{job.ID, job.Name, job.Repo, job.Workflow, job.Branch, job.Actor, job.URL} {
+			if strings.ContainsFunc(text, unicode.IsControl) {
+				t.Fatalf("control characters in %q", text)
+			}
+		}
+	})
+}
+
+func TestParseJobMessageSurvivesAMaskThatAteAQuote(t *testing.T) {
+	head := fixture(t, "github/Worker_20261123-173811-utc.log")
+	broken := bytes.Replace(head, []byte(`"jobId":`), []byte(`"lit": "curl -H \"Authorization: ***" -X POST",`+"\n"+`  "jobId":`), 1)
+	message := broken[bytes.Index(broken, []byte("Job message:")):]
+	if json.NewDecoder(bytes.NewReader(message[bytes.IndexByte(message, '{'):])).Decode(new(any)) == nil {
+		t.Fatal("fixture edit must break the JSON")
+	}
+	want, err := ParseJobMessage(head)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := ParseJobMessage(broken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotJSON, _ := json.Marshal(got)
+	wantJSON, _ := json.Marshal(want)
+	if !bytes.Equal(gotJSON, wantJSON) {
+		t.Fatalf("got  %s\nwant %s", gotJSON, wantJSON)
 	}
 }

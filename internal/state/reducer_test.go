@@ -13,7 +13,7 @@ const key = "github|incus:runner-acme-1|actions.runner.acme.zenbook-acme-1.servi
 
 func presence(worker int, online bool) Presence {
 	return Presence{
-		Key: key, Provider: "github", Target: "incus:runner-acme-1", Service: "active", Online: online,
+		Key: key, Name: "actions.runner.acme.zenbook-acme-1.service", Provider: "github", Target: "incus:runner-acme-1", Service: "active", Online: online,
 		Placement:   scan.Placement{Kind: scan.KindIncus, Container: "runner-acme-1", Unit: "actions.runner.acme.zenbook-acme-1.service"},
 		WorkerPID:   worker,
 		WorkerStart: t0,
@@ -54,7 +54,7 @@ func TestBusyIdleAndResultOnce(t *testing.T) {
 		t.Fatalf("busy = %+v", busy)
 	}
 
-	r.SetCurrent(key, Job{ID: "new", Name: "check", Repo: "acme/widgets", Workflow: "CI"})
+	r.SetCurrent(key, 92911, Job{ID: "new", Name: "check", Repo: "acme/widgets", Workflow: "CI"})
 	busy = onlyRunner(t, r, t0.Add(3*time.Second))
 	if busy.Job.Expected != Duration(3*time.Minute) || !busy.Job.StartedAt.Equal(t0) || busy.Job.Source != SourceDiag {
 		t.Fatalf("expected duration from history, kept Worker start: %+v", busy.Job)
@@ -94,7 +94,7 @@ func TestContainerStoppingMidJobEndsUnknown(t *testing.T) {
 	r := NewReducer()
 	r.Observe([]Presence{presence(92911, true)}, t0)
 	r.SetInfo(key, Info{Name: "zenbook-acme-1", Scope: "acme"})
-	r.SetCurrent(key, Job{ID: "j1", Name: "check", Repo: "acme/widgets", Workflow: "CI"})
+	r.SetCurrent(key, 92911, Job{ID: "j1", Name: "check", Repo: "acme/widgets", Workflow: "CI"})
 	r.Observe(nil, t0.Add(time.Minute))
 	snap := r.Snapshot(t0.Add(time.Minute))
 	if len(snap.Runners) != 0 || len(snap.Recent) != 1 {
@@ -118,11 +118,11 @@ func TestShortJobSeenOnlyThroughIndex(t *testing.T) {
 func TestRecentCapAndOrder(t *testing.T) {
 	r := NewReducer()
 	r.Observe([]Presence{presence(0, true)}, t0)
-	for i := range 30 {
+	for i := range recentCap + 10 {
 		r.AddResults(key, []Result{finished(string(rune('a'+i)), ConclusionSuccess, t0.Add(time.Duration(i)*time.Minute), time.Minute)})
 	}
 	snap := r.Snapshot(t0)
-	if len(snap.Recent) != recentCap || snap.Recent[0].ID != string(rune('a'+29)) {
+	if len(snap.Recent) != recentCap || snap.Recent[0].ID != string(rune('a'+recentCap+9)) {
 		t.Fatalf("recent %d, first %s", len(snap.Recent), snap.Recent[0].ID)
 	}
 }
@@ -131,8 +131,8 @@ func TestAPIJobFillsStepsForMatchingRunnerAndJob(t *testing.T) {
 	r := NewReducer()
 	r.Observe([]Presence{presence(92911, true)}, t0)
 	r.SetInfo(key, Info{Name: "zenbook-acme-1", Scope: "acme"})
-	r.SetCurrent(key, Job{ID: "j1", Name: "e2e", Repo: "acme/widgets", RunID: 7})
-	r.SetAPIJobs(7, []APIJob{
+	r.SetCurrent(key, 92911, Job{ID: "j1", Name: "e2e", Repo: "acme/widgets", RunID: 7})
+	r.SetAPIJobs(RunAttempt{RunID: 7}, []APIJob{
 		{Name: "postgres", RunnerName: "zenbook-acme-1", URL: "wrong", Steps: []Step{{Name: "x"}}},
 		{Name: "e2e", RunnerName: "zenbook-acme-1", URL: "right", Steps: []Step{{Name: "a"}, {Name: "b", Status: StepPending}}},
 	})
@@ -144,5 +144,45 @@ func TestAPIJobFillsStepsForMatchingRunnerAndJob(t *testing.T) {
 	}
 	if got.API == nil || got.Labels[1] != "gpu" {
 		t.Fatalf("api runner = %+v labels %v", got.API, got.Labels)
+	}
+}
+
+func TestSetCurrentIgnoresAReplacedWorker(t *testing.T) {
+	r := NewReducer()
+	r.Observe([]Presence{presence(92911, true)}, t0)
+	r.Observe([]Presence{presence(93001, true)}, t0.Add(time.Second))
+	r.SetCurrent(key, 92911, Job{ID: "old", Repo: "acme/widgets"})
+	if job := onlyRunner(t, r, t0).Job; job.ID != "" {
+		t.Fatalf("job of the previous Worker landed on the new one: %+v", job)
+	}
+}
+
+func TestUnknownIsReplacedByTheRealConclusion(t *testing.T) {
+	r := NewReducer()
+	r.Observe([]Presence{presence(0, true)}, t0)
+	r.EndJob(key, Job{ID: "j1", Name: "check", Repo: "acme/widgets", Workflow: "CI", StartedAt: t0.Add(-time.Minute)}, ConclusionUnknown, t0)
+	r.AddResults(key, []Result{finished("j1", ConclusionFailure, t0.Add(-time.Second), time.Minute)})
+	snap := r.Snapshot(t0)
+	if len(snap.Recent) != 1 || snap.Recent[0].Conclusion != ConclusionFailure || snap.Runners[0].Last.Conclusion != ConclusionFailure {
+		t.Fatalf("recent %+v last %+v", snap.Recent, snap.Runners[0].Last)
+	}
+	r.AddResults(key, []Result{finished("j1", ConclusionSuccess, t0, time.Minute)})
+	if got := r.Snapshot(t0).Recent; len(got) != 1 || got[0].Conclusion != ConclusionFailure {
+		t.Fatalf("a real conclusion must not be replaced: %+v", got)
+	}
+}
+
+func TestPruneForgetsOldIDsAndIdleRuns(t *testing.T) {
+	r := NewReducer()
+	r.Observe([]Presence{presence(92911, true)}, t0)
+	r.SetCurrent(key, 92911, Job{ID: "j1", Repo: "acme/widgets", RunID: 7})
+	r.AddResults(key, []Result{finished("ancient", ConclusionSuccess, t0.Add(-48*time.Hour), time.Minute)})
+	r.SetAPIJobs(RunAttempt{RunID: 7}, nil)
+	r.SetAPIJobs(RunAttempt{RunID: 6}, nil)
+	r.SetRunTitle(7, "busy")
+	r.SetRunTitle(6, "done")
+	r.Prune(t0.Add(-25 * time.Hour))
+	if _, ok := r.seen["ancient"]; ok || len(r.apiJobs) != 1 || len(r.runTitles) != 1 || r.runTitles[7] != "busy" {
+		t.Fatalf("seen %v apiJobs %v titles %v", r.seen, r.apiJobs, r.runTitles)
 	}
 }
