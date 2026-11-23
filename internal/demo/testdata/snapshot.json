@@ -1,0 +1,486 @@
+{
+  "schema": "runrack.snapshot/v1",
+  "host": {
+    "hostname": "homelab",
+    "load1": 3.21,
+    "load5": 2.8,
+    "load15": 2.1,
+    "cpus": 16,
+    "cpuPct": 23,
+    "memUsed": 6549825126,
+    "memTotal": 16106127360,
+    "uptime": 352800
+  },
+  "runners": [
+    {
+      "id": "github/incus:runner-acme-1/zenbook-acme-1",
+      "provider": "github",
+      "name": "zenbook-acme-1",
+      "scope": "acme",
+      "placement": {
+        "kind": "incus",
+        "container": "runner-acme-1",
+        "unit": "actions.runner.acme.zenbook-acme-1.service"
+      },
+      "service": "active",
+      "status": "busy",
+      "version": "2.338.2",
+      "labels": [
+        "self-hosted",
+        "Linux",
+        "X64",
+        "homelab"
+      ],
+      "job": {
+        "id": "6f1c2a3e-0d4b-5c6d-8e9f-0a1b2c3d4e5f",
+        "name": "check",
+        "repo": "acme/widgets",
+        "workflow": "CI",
+        "branch": "ci/homelab-runner",
+        "baseBranch": "main",
+        "event": "pull_request",
+        "actor": "octocat",
+        "sha": "c0a9cbb51e2d4f8a9b7c6d5e4f3a2b1c0d9e8f7a",
+        "title": "fix: homelab runner labels",
+        "url": "https://github.com/acme/widgets/actions/runs/45229190085",
+        "runId": 45229190085,
+        "runNumber": 16,
+        "attempt": 1,
+        "pr": 14,
+        "startedAt": "2026-11-23T17:39:36Z",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "startedAt": "2026-11-23T17:39:36Z",
+            "duration": 3
+          },
+          {
+            "name": "Run actions/checkout@v5",
+            "status": "completed",
+            "conclusion": "success",
+            "startedAt": "2026-11-23T17:39:39Z",
+            "duration": 2
+          },
+          {
+            "name": "Run actions/setup-node@v5",
+            "status": "completed",
+            "conclusion": "success",
+            "startedAt": "2026-11-23T17:39:41Z",
+            "duration": 9
+          },
+          {
+            "name": "Run npm ci",
+            "status": "in_progress",
+            "startedAt": "2026-11-23T17:39:50Z"
+          },
+          {
+            "name": "Run npm test",
+            "status": "pending"
+          }
+        ],
+        "expected": 190,
+        "source": "api"
+      },
+      "last": {
+        "runnerId": "github/incus:runner-acme-1/zenbook-acme-1",
+        "runner": "zenbook-acme-1",
+        "id": "zenbook-acme-1-171207",
+        "name": "check",
+        "repo": "acme/widgets",
+        "workflow": "CI",
+        "branch": "main",
+        "startedAt": "2026-11-23T17:10:09Z",
+        "source": "diag",
+        "conclusion": "success",
+        "finishedAt": "2026-11-23T17:12:07Z",
+        "duration": 118
+      },
+      "api": {
+        "id": 0,
+        "name": "zenbook-acme-1",
+        "status": "online",
+        "busy": true,
+        "labels": [
+          "self-hosted",
+          "Linux",
+          "X64",
+          "homelab"
+        ]
+      },
+      "container": {
+        "cpuPct": 61,
+        "memBytes": 2040109465,
+        "procs": 212
+      }
+    },
+    {
+      "id": "github/incus:runner-acme-2/zenbook-acme-2",
+      "provider": "github",
+      "name": "zenbook-acme-2",
+      "scope": "acme",
+      "placement": {
+        "kind": "incus",
+        "container": "runner-acme-2",
+        "unit": "actions.runner.acme.zenbook-acme-2.service"
+      },
+      "service": "active",
+      "status": "idle",
+      "version": "2.338.2",
+      "labels": [
+        "self-hosted",
+        "Linux",
+        "X64",
+        "homelab"
+      ],
+      "last": {
+        "runnerId": "github/incus:runner-acme-2/zenbook-acme-2",
+        "runner": "zenbook-acme-2",
+        "id": "zenbook-acme-2-170607",
+        "name": "check",
+        "repo": "acme/widgets",
+        "workflow": "CI",
+        "branch": "main",
+        "startedAt": "2026-11-23T17:04:06Z",
+        "source": "diag",
+        "conclusion": "success",
+        "finishedAt": "2026-11-23T17:06:07Z",
+        "duration": 121
+      },
+      "api": {
+        "id": 0,
+        "name": "zenbook-acme-2",
+        "status": "online",
+        "busy": false,
+        "labels": [
+          "self-hosted",
+          "Linux",
+          "X64",
+          "homelab"
+        ]
+      },
+      "container": {
+        "cpuPct": 1,
+        "memBytes": 429496729,
+        "procs": 64
+      }
+    },
+    {
+      "id": "github/incus:runner-acme-3/zenbook-acme-3",
+      "provider": "github",
+      "name": "zenbook-acme-3",
+      "scope": "acme",
+      "placement": {
+        "kind": "incus",
+        "container": "runner-acme-3",
+        "unit": "actions.runner.acme.zenbook-acme-3.service"
+      },
+      "service": "active",
+      "status": "idle",
+      "version": "2.338.2",
+      "labels": [
+        "self-hosted",
+        "Linux",
+        "X64",
+        "homelab"
+      ],
+      "last": {
+        "runnerId": "github/incus:runner-acme-3/zenbook-acme-3",
+        "runner": "zenbook-acme-3",
+        "id": "zenbook-acme-3-173507",
+        "name": "check",
+        "repo": "acme/widgets",
+        "workflow": "CI",
+        "branch": "ci/homelab-runner",
+        "startedAt": "2026-11-23T17:34:12Z",
+        "source": "diag",
+        "conclusion": "failure",
+        "finishedAt": "2026-11-23T17:35:07Z",
+        "duration": 55
+      },
+      "api": {
+        "id": 0,
+        "name": "zenbook-acme-3",
+        "status": "online",
+        "busy": false,
+        "labels": [
+          "self-hosted",
+          "Linux",
+          "X64",
+          "homelab"
+        ]
+      },
+      "container": {
+        "cpuPct": 2,
+        "memBytes": 536870912,
+        "procs": 66
+      }
+    },
+    {
+      "id": "github/incus:runner-globex-3/zenbook-globex-3",
+      "provider": "github",
+      "name": "zenbook-globex-3",
+      "scope": "globex",
+      "placement": {
+        "kind": "incus",
+        "container": "runner-globex-3",
+        "unit": "actions.runner.globex.zenbook-globex-3.service"
+      },
+      "service": "active",
+      "status": "busy",
+      "version": "2.338.2",
+      "labels": [
+        "self-hosted",
+        "Linux",
+        "X64",
+        "homelab"
+      ],
+      "job": {
+        "id": "9a8b7c6d-5e4f-4a3b-2c1d-0e9f8a7b6c5d",
+        "name": "check",
+        "repo": "globex/site",
+        "workflow": "CI",
+        "branch": "main",
+        "event": "push",
+        "actor": "octocat",
+        "sha": "4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f",
+        "url": "https://github.com/globex/site/actions/runs/45229199120",
+        "runId": 45229199120,
+        "runNumber": 88,
+        "attempt": 1,
+        "startedAt": "2026-11-23T17:41:55Z",
+        "source": "diag"
+      },
+      "api": {
+        "id": 0,
+        "name": "zenbook-globex-3",
+        "status": "online",
+        "busy": true,
+        "labels": [
+          "self-hosted",
+          "Linux",
+          "X64",
+          "homelab"
+        ]
+      },
+      "container": {
+        "cpuPct": 34,
+        "memBytes": 1288490188,
+        "procs": 140
+      }
+    },
+    {
+      "id": "github/incus:runner-globex-1/zenbook-globex-1",
+      "provider": "github",
+      "name": "zenbook-globex-1",
+      "scope": "globex",
+      "placement": {
+        "kind": "incus",
+        "container": "runner-globex-1",
+        "unit": "actions.runner.globex.zenbook-globex-1.service"
+      },
+      "service": "active",
+      "status": "idle",
+      "version": "2.338.2",
+      "labels": [
+        "self-hosted",
+        "Linux",
+        "X64",
+        "homelab"
+      ],
+      "last": {
+        "runnerId": "github/incus:runner-globex-1/zenbook-globex-1",
+        "runner": "zenbook-globex-1",
+        "id": "zenbook-globex-1-173407",
+        "name": "check",
+        "repo": "globex/site",
+        "workflow": "CI",
+        "branch": "main",
+        "startedAt": "2026-11-23T17:32:31Z",
+        "source": "diag",
+        "conclusion": "success",
+        "finishedAt": "2026-11-23T17:34:07Z",
+        "duration": 96
+      },
+      "api": {
+        "id": 0,
+        "name": "zenbook-globex-1",
+        "status": "online",
+        "busy": false,
+        "labels": [
+          "self-hosted",
+          "Linux",
+          "X64",
+          "homelab"
+        ]
+      },
+      "container": {
+        "cpuPct": 1,
+        "memBytes": 429496729,
+        "procs": 61
+      }
+    },
+    {
+      "id": "github/incus:runner-globex-2/zenbook-globex-2",
+      "provider": "github",
+      "name": "zenbook-globex-2",
+      "scope": "globex",
+      "placement": {
+        "kind": "incus",
+        "container": "runner-globex-2",
+        "unit": "actions.runner.globex.zenbook-globex-2.service"
+      },
+      "service": "active",
+      "status": "idle",
+      "version": "2.338.2",
+      "labels": [
+        "self-hosted",
+        "Linux",
+        "X64",
+        "homelab"
+      ],
+      "last": {
+        "runnerId": "github/incus:runner-globex-2/zenbook-globex-2",
+        "runner": "zenbook-globex-2",
+        "id": "zenbook-globex-2-165107",
+        "name": "build",
+        "repo": "globex/site",
+        "workflow": "CI",
+        "branch": "feat/tv-layout",
+        "startedAt": "2026-11-23T16:48:57Z",
+        "source": "diag",
+        "conclusion": "cancelled",
+        "finishedAt": "2026-11-23T16:51:07Z",
+        "duration": 130
+      },
+      "api": {
+        "id": 0,
+        "name": "zenbook-globex-2",
+        "status": "online",
+        "busy": false,
+        "labels": [
+          "self-hosted",
+          "Linux",
+          "X64",
+          "homelab"
+        ]
+      },
+      "container": {
+        "cpuPct": 0,
+        "memBytes": 429496729,
+        "procs": 60
+      }
+    }
+  ],
+  "recent": [
+    {
+      "runnerId": "github/incus:runner-acme-3/zenbook-acme-3",
+      "runner": "zenbook-acme-3",
+      "id": "zenbook-acme-3-173507",
+      "name": "check",
+      "repo": "acme/widgets",
+      "workflow": "CI",
+      "branch": "ci/homelab-runner",
+      "startedAt": "2026-11-23T17:34:12Z",
+      "source": "diag",
+      "conclusion": "failure",
+      "finishedAt": "2026-11-23T17:35:07Z",
+      "duration": 55
+    },
+    {
+      "runnerId": "github/incus:runner-globex-1/zenbook-globex-1",
+      "runner": "zenbook-globex-1",
+      "id": "zenbook-globex-1-173407",
+      "name": "check",
+      "repo": "globex/site",
+      "workflow": "CI",
+      "branch": "main",
+      "startedAt": "2026-11-23T17:32:31Z",
+      "source": "diag",
+      "conclusion": "success",
+      "finishedAt": "2026-11-23T17:34:07Z",
+      "duration": 96
+    },
+    {
+      "runnerId": "github/incus:runner-acme-1/zenbook-acme-1",
+      "runner": "zenbook-acme-1",
+      "id": "zenbook-acme-1-171207",
+      "name": "check",
+      "repo": "acme/widgets",
+      "workflow": "CI",
+      "branch": "main",
+      "startedAt": "2026-11-23T17:10:09Z",
+      "source": "diag",
+      "conclusion": "success",
+      "finishedAt": "2026-11-23T17:12:07Z",
+      "duration": 118
+    },
+    {
+      "runnerId": "github/incus:runner-acme-2/zenbook-acme-2",
+      "runner": "zenbook-acme-2",
+      "id": "zenbook-acme-2-170607",
+      "name": "check",
+      "repo": "acme/widgets",
+      "workflow": "CI",
+      "branch": "main",
+      "startedAt": "2026-11-23T17:04:06Z",
+      "source": "diag",
+      "conclusion": "success",
+      "finishedAt": "2026-11-23T17:06:07Z",
+      "duration": 121
+    },
+    {
+      "runnerId": "github/incus:runner-globex-2/zenbook-globex-2",
+      "runner": "zenbook-globex-2",
+      "id": "zenbook-globex-2-165107",
+      "name": "build",
+      "repo": "globex/site",
+      "workflow": "CI",
+      "branch": "feat/tv-layout",
+      "startedAt": "2026-11-23T16:48:57Z",
+      "source": "diag",
+      "conclusion": "cancelled",
+      "finishedAt": "2026-11-23T16:51:07Z",
+      "duration": 130
+    },
+    {
+      "runnerId": "github/incus:runner-globex-2/zenbook-globex-2",
+      "runner": "zenbook-globex-2",
+      "id": "zenbook-globex-2-164007",
+      "name": "build",
+      "repo": "globex/site",
+      "workflow": "CI",
+      "branch": "main",
+      "startedAt": "2026-11-23T16:37:46Z",
+      "source": "diag",
+      "conclusion": "failure",
+      "finishedAt": "2026-11-23T16:40:07Z",
+      "duration": 141
+    }
+  ],
+  "sources": [
+    {
+      "name": "api runners acme",
+      "ok": true,
+      "lastOK": "2026-11-23T17:42:07Z"
+    },
+    {
+      "name": "api runners globex",
+      "ok": true,
+      "lastOK": "2026-11-23T17:42:07Z"
+    },
+    {
+      "name": "incus list",
+      "ok": true,
+      "lastOK": "2026-11-23T17:42:07Z"
+    },
+    {
+      "name": "proc",
+      "ok": true,
+      "lastOK": "2026-11-23T17:42:07Z"
+    }
+  ],
+  "api": true,
+  "takenAt": "2026-11-23T17:42:07Z"
+}
