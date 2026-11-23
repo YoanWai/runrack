@@ -1,0 +1,75 @@
+ [1mrunrack[m  homelab                                                                                      [1m* 2 busy[m   o 4 idle   x 0 offline                                                                                   Mon 23 Nov  17:42:07 
+
++- [1macme[m -------------------------------------------------------------------------------------------------- 3 runners -+ +- [1mglobex[m ------------------------------------------------------------------------------------------------ 3 runners -+
+| [1m*[m [1;7mzenbook-acme-1[m                                                                                        [1mBUSY  02:31[m | | [1m*[m zenbook-globex-3                                                                                      [1mBUSY  00:12[m |
+|   acme/widgets                                                                                                      | |   globex/site                                                                                                       |
+|   CI > check       PR #14  ci/homelab-runner -> main                                                                | |   CI > check       main  push                                                                                       |
+|   [1m###################[m..... 02:31 / ~03:10   [1m>[m Run npm ci                                                            | |   00:12   [1m>[m Set up job                                                                                              |
+| o zenbook-acme-2                                                                          idle   + check        36m | | o zenbook-globex-1                                                                        idle   + check         8m |
+| o zenbook-acme-3                                                                          idle   [1mx[m check         7m | | o zenbook-globex-2                                                                        idle   - build        51m |
++---------------------------------------------------------------------------------------------------------------------+ +---------------------------------------------------------------------------------------------------------------------+
+
+ [1mRECENT[m ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ 17:35  [1mx failure[m     acme/widgets                                               CI > check                                        ci/homelab-runner                                   0:55  zenbook-acme-3
+ 17:34  + success     globex/site                                                CI > check                                        main                                                1:36  zenbook-globex-1
+ 17:12  + success     acme/widgets                                               CI > check                                        main                                                1:58  zenbook-acme-1
+ 17:06  + success     acme/widgets                                               CI > check                                        main                                                2:01  zenbook-acme-2
+ 16:51  - cancelled   globex/site                                                CI > build                                        feat/tv-layout                                      2:10  zenbook-globex-2
+ 16:40  [1mx failure[m     globex/site                                                CI > build                                        main                                                2:21  zenbook-globex-2
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ [1mHOST[m -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ cpu  23% ##........   mem 6.1/15.0G ####......   load 3.21 2.80 2.10 /16   up 4d 2h
+ acme-1 61% 1.9G   acme-2 1% 0.4G   acme-3 2% 0.5G   globex-3 34% 1.2G   globex-1 1% 0.4G   globex-2 0% 0.4G
+ hjkl select  enter detail  r refresh  ? help  q quit                                                                                                                                                              local + api   updated 0s ago 

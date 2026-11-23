@@ -1,0 +1,24 @@
+ [1mrunrack[m  homelab      [1m* 2 busy[m   o 4 idle   x 0 offline               17:42:07 
+
++- [1macme[m ----------------------------------------------------------- 3 runners -+
+| [1m*[m [1;7mzenbook-acme-1[m                                                 [1mBUSY  02:31[m |
+|   acme/widgets  CI > check  [1m>[m Run npm ci                                     |
+| o zenbook-acme-2                                   idle   + check        36m |
+| o zenbook-acme-3                                   idle   [1mx[m check         7m |
++------------------------------------------------------------------------------+
++- [1mglobex[m --------------------------------------------------------- 3 runners -+
+| [1m*[m zenbook-globex-3                                               [1mBUSY  00:12[m |
+|   globex/site  CI > check  [1m>[m Set up job                                      |
+| o zenbook-globex-1                                 idle   + check         8m |
+| o zenbook-globex-2                                 idle   - build        51m |
++------------------------------------------------------------------------------+
+
+ [1mRECENT[m -----------------------------------------------------------------------
+ 17:35  [1mx failure[m     acme/widgets  CI > check  ci/homela~    0:55  zenbook-acm~
+ 17:34  + success     globex/site   CI > check  main          1:36  zenbook-glo~
+ 17:12  + success     acme/widgets  CI > check  main          1:58  zenbook-acm~
+
+ [1mHOST[m -------------------------------------------------------------------------
+ cpu  23% ##........   mem 6.1/15.0G ####......   load 3.21 2.80 2.10 /16   up ~
+ acme-1 61% 1.9G   acme-2 1% 0.4G   acme-3 2% 0.5G   globex-3 34% 1.2G   globex~
+ hjkl select  enter detail  r refresh  ? help  q ~ local + api   updated 0s ago 

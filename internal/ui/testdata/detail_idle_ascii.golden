@@ -1,0 +1,11 @@
+ [1mrunrack[m > zenbook-acme-2                                                                           esc back   17:42:07 
+ [1mSTEPS[m                                                      [1mRUNNER[m
+ idle                                                       unit       actions.runner.acme.zenbook-acme-2
+                                                            where      incus runner-acme-2
+                                                            version    2.338.2
+                                                            labels     self-hosted, Linux, X64, homelab
+                                                            container  cpu 1%  mem 0.4G  procs 64
+                                                            github     online
+
+ [1mRECENT ON THIS RUNNER[m
+ 17:06  + success  acme/widgets  CI > check  main  2:01

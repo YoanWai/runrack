@@ -1,0 +1,23 @@
+
+
+
+
+
+
+
+
+
+                                       +---------------------------------------+
+                                       | [1mKeys[m                                  |
+                                       | hjkl           move selection         |
+                                       | enter          open detail            |
+                                       | esc            back                   |
+                                       | r              refresh now, retry API |
+                                       | ?              this help              |
+                                       | q              quit                   |
+                                       |                                       |
+                                       | [1mGlyphs[m                                |
+                                       | [1m*[m busy   o idle   x offline           |
+                                       | + success   [1mx[m failure   - cancelled   |
+                                       | [1m>[m current step   . pending step       |
+                                       +---------------------------------------+

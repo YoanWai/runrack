@@ -1,0 +1,11 @@
+ [1;37mrunrack[m[37m > [m[37mzenbook-acme-2[m                                                                           [37mesc back   [m[37m17:42:07[m 
+ [1;37mSTEPS[m                                                      [1;37mRUNNER[m
+ [37midle[m                                                       [37munit       [m[37mactions.runner.acme.zenbook-acme-2[m
+                                                            [37mwhere      [m[37mincus runner-acme-2[m
+                                                            [37mversion    [m[37m2.338.2[m
+                                                            [37mlabels     [m[37mself-hosted, Linux, X64, homelab[m
+                                                            [37mcontainer  [m[37mcpu 1%  mem 0.4G  procs 64[m
+                                                            [37mgithub     [m[37monline[m
+
+ [1;37mRECENT ON THIS RUNNER[m
+ [37m17:06[m  [32m√ success[m  [37macme/widgets[m  [37mCI > check[m  [37mmain[m  [37m2:01[m
