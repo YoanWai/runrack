@@ -23,8 +23,8 @@ const (
 	screenHelp
 )
 
+// snapshotMsg also drives the clock: collectors publish at least once a second.
 type snapshotMsg state.Snapshot
-type tickMsg time.Time
 
 type Model struct {
 	view      View
@@ -45,15 +45,11 @@ func NewModel(view View, snaps <-chan state.Snapshot, control Controller) Model 
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.waitSnapshot(), tick())
+	return m.waitSnapshot()
 }
 
 func (m Model) waitSnapshot() tea.Cmd {
 	return func() tea.Msg { return snapshotMsg(<-m.snaps) }
-}
-
-func tick() tea.Cmd {
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -62,11 +58,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.view.Width, m.view.Height, m.hasLayout = msg.Width, msg.Height, true
 	case snapshotMsg:
 		m.snap = state.Snapshot(msg)
+		m.now = time.Now()
 		m.ensureSelection()
 		return m, m.waitSnapshot()
-	case tickMsg:
-		m.now = time.Time(msg)
-		return m, tick()
 	case tea.KeyPressMsg:
 		m.lastKey = time.Now()
 		return m.key(msg.String())

@@ -38,7 +38,8 @@ func runTUI(opts options, stderr io.Writer) int {
 		go engine.Run(ctx, snaps)
 		control = engine
 	}
-	program := tea.NewProgram(ui.NewModel(view, snaps, control), tea.WithColorProfile(profile))
+	// The board changes about once a second, so 10 frames keep keys snappy without the default 60 fps cost.
+	program := tea.NewProgram(ui.NewModel(view, snaps, control), tea.WithColorProfile(profile), tea.WithFPS(10))
 	if _, err := program.Run(); err != nil {
 		fmt.Fprintln(stderr, "runrack:", err)
 		return 1
