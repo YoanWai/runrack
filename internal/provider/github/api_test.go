@@ -77,12 +77,12 @@ func TestForbiddenDisablesEndpointUntilReset(t *testing.T) {
 	if !strings.Contains(err.Error(), footer) || client.Disabled()[0] != footer {
 		t.Fatalf("err %q, disabled %v", err, client.Disabled())
 	}
-	client.Runners(t.Context(), "acme")
+	_, _ = client.Runners(t.Context(), "acme")
 	if hits.Load() != 1 {
 		t.Fatal("a disabled endpoint must not be called again")
 	}
 	client.Reset()
-	client.Runners(t.Context(), "acme")
+	_, _ = client.Runners(t.Context(), "acme")
 	if hits.Load() != 2 {
 		t.Fatal("Reset must re-enable the endpoint")
 	}
