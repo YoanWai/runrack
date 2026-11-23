@@ -50,7 +50,7 @@ func Detail(v View, snap state.Snapshot, key string, now time.Time) string {
 	if len(mine) == 0 {
 		lines = append(lines, " "+t.Dim.Render("Nothing finished in the last 24 hours."))
 	}
-	lines = append(lines, recentLines(v, mine, false)...)
+	lines = append(lines, recentLines(v, mine, false, shortener(snap))...)
 	if v.Height > 0 && len(lines) > v.Height {
 		lines = lines[:v.Height]
 	}

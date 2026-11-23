@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -124,5 +125,46 @@ func golden(t *testing.T, name, got string) {
 	}
 	if !bytes.Equal(want, []byte(got)) {
 		t.Errorf("%s differs from golden. Plain render:\n%s", name, ansi.Strip(got))
+	}
+}
+
+func TestBoardKeepsLongNamesWholeOnTV(t *testing.T) {
+	snap := demoSnapshot()
+	for i := range snap.Runners {
+		if last := snap.Runners[i].Last; last != nil {
+			long := *last
+			long.Workflow, long.Name = "Preview deploy", "deploy to staging"
+			snap.Runners[i].Last = &long
+		}
+	}
+	snap.Recent[0].Branch = "fix/ci-preview-comment-old-gh"
+	view := View{Width: 120, Height: 66, Theme: NewTheme(colorprofile.ANSI), Glyphs: ConsoleGlyphs, Loc: time.UTC}
+	out := Board(view, snap, goldenNow)
+	checkFrame(t, out, 120, 66, true)
+	plain := ansi.Strip(out)
+	for _, want := range []string{"Preview deploy > deploy to staging", "fix/ci-preview-comment-old-gh", "globex-2", "acme-1 "} {
+		if !strings.Contains(plain, want) {
+			t.Errorf("board lacks %q:\n%s", want, plain)
+		}
+	}
+	if cut := regexp.MustCompile(`[^ ]~`).FindString(plain); cut != "" {
+		t.Errorf("board truncates %q:\n%s", cut, plain)
+	}
+}
+
+func TestSharedFirstWord(t *testing.T) {
+	for _, tc := range []struct {
+		names []string
+		want  string
+	}{
+		{[]string{"zenbook-acme-1", "zenbook-globex-1"}, "zenbook-"},
+		{[]string{"zenbook-acme-1", "laptop-acme-2"}, ""},
+		{[]string{"zenbook-acme-1"}, ""},
+		{[]string{"zenbook-", "zenbook-acme-1"}, ""},
+		{[]string{"acme", "acme"}, ""},
+	} {
+		if got := sharedFirstWord(tc.names); got != tc.want {
+			t.Errorf("sharedFirstWord(%q) = %q, want %q", tc.names, got, tc.want)
+		}
 	}
 }

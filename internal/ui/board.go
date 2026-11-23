@@ -11,12 +11,14 @@ import (
 )
 
 const (
-	columnWidth     = 58
-	maxColumns      = 4
-	minRecent       = 3
-	compactBelow    = 80
-	narrowRecent    = 100
-	nameColumnWidth = 24
+	maxColumns   = 4
+	minRecent    = 3
+	compactBelow = 80
+	narrowRecent = 100
+	minCardWidth = 56
+	// idleWidth covers " idle", the conclusion, the age of the last job and the gaps between them.
+	idleWidth  = 26
+	cardChrome = 8
 )
 
 type View struct {
@@ -49,10 +51,80 @@ func groups(snap state.Snapshot) []group {
 	return out
 }
 
-// columns never leaves a column empty, so two groups on a wide TV get half the screen each.
-func columns(w, groupCount int) int {
-	return max(min(w/columnWidth, maxColumns, groupCount), 1)
+// short drops a repo owner that is also a group and the first word every runner name shares.
+type short struct {
+	owners map[string]bool
+	prefix string
 }
+
+func shortener(snap state.Snapshot) short {
+	s := short{owners: map[string]bool{}}
+	var names []string
+	for _, r := range snap.Runners {
+		s.owners[r.Scope] = true
+		names = append(names, r.Name)
+	}
+	s.prefix = sharedFirstWord(names)
+	return s
+}
+
+func sharedFirstWord(names []string) string {
+	if len(names) < 2 {
+		return ""
+	}
+	cut := strings.Index(names[0], "-")
+	if cut < 0 {
+		return ""
+	}
+	prefix := names[0][:cut+1]
+	for _, name := range names {
+		if !strings.HasPrefix(name, prefix) || len(name) == len(prefix) {
+			return ""
+		}
+	}
+	return prefix
+}
+
+func (s short) repo(repo string) string {
+	if owner, name, ok := strings.Cut(repo, "/"); ok && s.owners[owner] {
+		return name
+	}
+	return repo
+}
+
+func (s short) runner(name string) string { return strings.TrimPrefix(name, s.prefix) }
+
+type cards struct {
+	names       short
+	nameW, jobW int
+	columns     int
+}
+
+// planCards puts groups side by side only while every card still shows each runner's last job in full.
+func planCards(snap state.Snapshot, groupCount, w int) cards {
+	c := cards{names: shortener(snap)}
+	for _, r := range snap.Runners {
+		c.nameW = max(c.nameW, width(c.names.runner(r.Name))+noteWidth(r))
+		if r.Last != nil {
+			c.jobW = max(c.jobW, width(jobLabel(r.Last.Workflow, r.Last.Name, ">")))
+		}
+	}
+	need := max(cardChrome+c.nameW+idleWidth+c.jobW, minCardWidth)
+	c.columns = max(min((w+1)/(need+1), maxColumns, groupCount), 1)
+	if w < compactBelow {
+		c.columns = 1
+	}
+	return c
+}
+
+func noteWidth(r state.Runner) int {
+	if r.Note != "" {
+		return 2
+	}
+	return 0
+}
+
+func jobLabel(workflow, name, sep string) string { return workflow + " " + sep + " " + name }
 
 // layout packs groups into columns, each group into the currently shortest column.
 func layout(gs []group, cols int, compact bool) [][]group {
@@ -91,12 +163,8 @@ func runnerHeight(r state.Runner, compact bool) int {
 
 func Order(snap state.Snapshot, w int) [][]string {
 	gs := groups(snap)
-	cols := columns(w, len(gs))
-	if w < compactBelow {
-		cols = 1
-	}
 	var order [][]string
-	for _, col := range layout(gs, cols, false) {
+	for _, col := range layout(gs, planCards(snap, len(gs), w).columns, false) {
 		var keys []string
 		for _, g := range col {
 			for _, r := range g.runners {
@@ -112,28 +180,33 @@ func Order(snap state.Snapshot, w int) [][]string {
 
 func Board(v View, snap state.Snapshot, now time.Time) string {
 	lines := []string{header(v, snap, now), ""}
+	host := hostLines(v, snap, 0)
 	board := boardLines(v, snap, now, false)
-	fixed := 9 // header, blank, blank, recent title, blank, host title, 2 host lines, footer
-	if v.Height > 0 && len(board) > v.Height-fixed-minRecent {
+	room := func() int { return v.Height - 7 - len(host) - minRecent } // header, blanks, titles and footer
+	if v.Height > 0 && len(board) > room() {
 		board = boardLines(v, snap, now, true)
-		board = board[:min(len(board), max(v.Height-fixed-minRecent, 0))]
+		if len(board) > room() {
+			host = hostLines(v, snap, 1)
+		}
+		board = board[:min(len(board), max(room(), 0))]
 	}
+	bottom := append([]string{"", sectionTitle(v, "HOST", "")}, host...)
+	bottom = append(bottom, footer(v, snap, now))
+	fixed := 4 + len(bottom)
 	lines = append(lines, board...)
 	recentRows := len(snap.Recent)
 	if v.Height > 0 {
 		recentRows = min(recentRows, max(v.Height-fixed-len(board), minRecent))
 	}
-	lines = append(lines, "", sectionTitle(v, "RECENT"))
+	lines = append(lines, "", sectionTitle(v, "RECENT", recentTally(v, snap.Recent)))
 	switch {
 	case snap.TakenAt.IsZero():
 		lines = append(lines, " "+v.Theme.Dim.Render("Loading history..."))
 	case len(snap.Recent) == 0:
 		lines = append(lines, " "+v.Theme.Dim.Render("No finished jobs in the last 24 hours."))
 	default:
-		lines = append(lines, recentLines(v, snap.Recent[:recentRows], v.Width >= narrowRecent)...)
+		lines = append(lines, recentLines(v, snap.Recent[:recentRows], v.Width >= narrowRecent, shortener(snap))...)
 	}
-	bottom := append([]string{"", sectionTitle(v, "HOST")}, hostLines(v, snap)...)
-	bottom = append(bottom, footer(v, snap, now))
 	if v.Height > 0 {
 		for len(lines)+len(bottom) < v.Height {
 			lines = append(lines, "")
@@ -179,9 +252,29 @@ func header(v View, snap state.Snapshot, now time.Time) string {
 	return spread(line, right, v.Width, g.More)
 }
 
-func sectionTitle(v View, name string) string {
-	rule := strings.Repeat(v.Glyphs.Horizontal, max(v.Width-len(name)-3, 0))
-	return " " + v.Theme.Title.Render(name) + " " + v.Theme.Border.Render(rule)
+func sectionTitle(v View, name, note string) string {
+	head := " " + v.Theme.Title.Render(name) + " "
+	if note != "" {
+		head += " " + note + "  "
+	}
+	return head + v.Theme.Border.Render(strings.Repeat(v.Glyphs.Horizontal, max(v.Width-width(head)-1, 0)))
+}
+
+func recentTally(v View, recent []state.Result) string {
+	var parts []string
+	for _, conclusion := range []string{state.ConclusionSuccess, state.ConclusionFailure, state.ConclusionCancelled} {
+		count := 0
+		for _, res := range recent {
+			if res.Conclusion == conclusion {
+				count++
+			}
+		}
+		if count > 0 {
+			glyph, style := conclusionGlyph(v, conclusion)
+			parts = append(parts, style.Render(fmt.Sprintf("%s %d", glyph, count)))
+		}
+	}
+	return strings.Join(parts, "   ")
 }
 
 func boardLines(v View, snap state.Snapshot, now time.Time, compact bool) []string {
@@ -191,22 +284,22 @@ func boardLines(v View, snap state.Snapshot, now time.Time, compact bool) []stri
 	if len(snap.Runners) == 0 {
 		return []string{" " + v.Theme.Dim.Render("No runners found on this machine. Try `runrack doctor`.")}
 	}
+	gs := groups(snap)
+	plan := planCards(snap, len(gs), v.Width)
 	if v.Width < compactBelow {
 		var lines []string
 		for _, r := range snap.Runners {
-			lines = append(lines, " "+listLine(v, r, v.Width-1, now))
+			lines = append(lines, " "+listLine(v, r, v.Width-1, now, plan))
 		}
 		return lines
 	}
-	gs := groups(snap)
-	cols := columns(v.Width, len(gs))
-	boxWidth := (v.Width - (cols - 1)) / cols
+	boxWidth := (v.Width - (plan.columns - 1)) / plan.columns
 	var rendered [][]string
 	height := 0
-	for _, col := range layout(gs, cols, compact) {
+	for _, col := range layout(gs, plan.columns, compact) {
 		var lines []string
 		for _, g := range col {
-			lines = append(lines, groupBox(v, g, boxWidth, now, compact)...)
+			lines = append(lines, groupBox(v, g, boxWidth, now, compact, plan)...)
 		}
 		rendered = append(rendered, lines)
 		height = max(height, len(lines))
@@ -226,12 +319,12 @@ func boardLines(v View, snap state.Snapshot, now time.Time, compact bool) []stri
 	return out
 }
 
-func groupBox(v View, g group, w int, now time.Time, compact bool) []string {
+func groupBox(v View, g group, w int, now time.Time, compact bool, plan cards) []string {
 	t, gl := v.Theme, v.Glyphs
 	inner := w - 4
 	var body []string
 	for _, r := range g.runners {
-		body = append(body, runnerLines(v, r, inner, now, compact)...)
+		body = append(body, runnerLines(v, r, inner, now, compact, plan)...)
 	}
 	count := fmt.Sprintf("%d runner", len(g.runners))
 	if len(g.runners) != 1 {
@@ -281,35 +374,37 @@ func conclusionGlyph(v View, conclusion string) (string, lipgloss.Style) {
 func (v View) selected(r state.Runner) bool { return v.ShowSelection && r.Key == v.Selected }
 
 // nameRow keeps the status next to the name, so the eye does not travel across a wide TV.
-func nameRow(v View, r state.Runner, right string, w int) string {
-	name := v.Theme.Title.Render(r.Name)
+func nameRow(v View, r state.Runner, right string, w int, plan cards) string {
+	shown := plan.names.runner(r.Name)
+	name := v.Theme.Title.Render(shown)
 	if v.selected(r) {
-		name = v.Theme.Text.Reverse(true).Bold(true).Render(r.Name)
+		name = v.Theme.Text.Reverse(true).Bold(true).Render(shown)
 	}
 	left := statusGlyph(v, r) + " " + name
 	if r.Note != "" {
 		left += " " + v.Theme.Failure.Render("!")
 	}
-	right = fit(right, max(w-nameColumnWidth-2, w/2), v.Glyphs.More)
+	right = fit(right, max(w-plan.nameW-4, w/2), v.Glyphs.More)
 	left = fit(left, w-width(right)-2, v.Glyphs.More)
-	return pad(left, min(nameColumnWidth, w-width(right)-2)) + "  " + right
+	return pad(left, min(plan.nameW+2, w-width(right)-2)) + "  " + right
 }
 
 func busyBadge(v View, elapsed time.Duration) string {
 	return v.Theme.BusyBadge.Render(" BUSY " + clock(elapsed) + " ")
 }
 
-func runnerLines(v View, r state.Runner, w int, now time.Time, compact bool) []string {
+func runnerLines(v View, r state.Runner, w int, now time.Time, compact bool, plan cards) []string {
 	t, g := v.Theme, v.Glyphs
 	switch {
 	case r.Status == state.StatusOffline:
-		return []string{nameRow(v, r, t.Offline.Render("offline  "+r.Service), w)}
+		return []string{nameRow(v, r, t.Offline.Render("offline  "+r.Service), w, plan)}
 	case r.Status != state.StatusBusy || r.Job == nil:
-		return []string{nameRow(v, r, idleRight(v, r, now), w)}
+		return []string{nameRow(v, r, idleRight(v, r, now, plan, w), w, plan)}
 	}
 	job := r.Job
+	repo := plan.names.repo(job.Repo)
 	elapsed := now.Sub(job.StartedAt)
-	lines := []string{nameRow(v, r, busyBadge(v, elapsed), w)}
+	lines := []string{nameRow(v, r, busyBadge(v, elapsed), w, plan)}
 	if !job.HasMetadata() {
 		note := "starting"
 		if r.Note != "" {
@@ -323,9 +418,9 @@ func runnerLines(v View, r state.Runner, w int, now time.Time, compact bool) []s
 		step = t.Busy.Render(g.Step) + " " + t.Text.Render(current)
 	}
 	if compact {
-		return append(lines, "  "+t.Dim.Render(job.Repo)+"  "+workflow+"  "+step)
+		return append(lines, "  "+t.Dim.Render(repo)+"  "+workflow+"  "+step)
 	}
-	lines = append(lines, "  "+t.Text.Render(job.Repo))
+	lines = append(lines, "  "+t.Text.Render(repo))
 	lines = append(lines, "  "+pad(workflow, 14)+"   "+t.Dim.Render(branchLine(job, g)))
 	progress := t.Text.Render(clock(elapsed))
 	if job.Expected > 0 {
@@ -347,69 +442,99 @@ func branchLine(job *state.Job, g Glyphs) string {
 	return job.Branch + "  " + job.Event
 }
 
-func idleRight(v View, r state.Runner, now time.Time) string {
-	right := " " + v.Theme.Idle.Render("idle") // lines up with the text of the busy badge
-	if r.Last != nil {
-		glyph, style := conclusionGlyph(v, r.Last.Conclusion)
-		right += "   " + style.Render(pad(glyph+" "+r.Last.Conclusion, 12)) + v.Theme.Dim.Render(fmt.Sprintf("%4s  ", age(now.Sub(r.Last.FinishedAt)))+fit(r.Last.Name, 16, v.Glyphs.More))
+// idleRight adds the repo of the last job only when it fits whole.
+func idleRight(v View, r state.Runner, now time.Time, plan cards, w int) string {
+	t := v.Theme
+	right := " " + t.Idle.Render("idle") // lines up with the text of the busy badge
+	if r.Last == nil {
+		return right
+	}
+	last := r.Last
+	glyph, style := conclusionGlyph(v, last.Conclusion)
+	right += "  " + pad(style.Render(glyph+" "+last.Conclusion), 11) + "  " +
+		t.Dim.Render(fmt.Sprintf("%4s", age(now.Sub(last.FinishedAt)))) + "  " +
+		pad(t.Text.Render(jobLabel(last.Workflow, last.Name, v.Glyphs.Sep)), plan.jobW)
+	if repo := plan.names.repo(last.Repo); plan.nameW+4+width(right)+3+width(repo) <= w {
+		right += "   " + t.Dim.Render(repo)
 	}
 	return right
 }
 
-func listLine(v View, r state.Runner, w int, now time.Time) string {
+func listLine(v View, r state.Runner, w int, now time.Time, plan cards) string {
 	if r.Status == state.StatusBusy && r.Job != nil && r.Job.HasMetadata() {
 		job := r.Job
-		right := busyBadge(v, now.Sub(job.StartedAt)) + " " + v.Theme.Dim.Render(job.Repo+" "+v.Glyphs.Sep+" "+job.Name)
-		return nameRow(v, r, right, w)
+		right := busyBadge(v, now.Sub(job.StartedAt)) + " " + v.Theme.Dim.Render(plan.names.repo(job.Repo)+" "+v.Glyphs.Sep+" "+job.Name)
+		return nameRow(v, r, right, w, plan)
 	}
 	if r.Status == state.StatusBusy {
-		return nameRow(v, r, busyBadge(v, now.Sub(r.Job.StartedAt)), w)
+		return nameRow(v, r, busyBadge(v, now.Sub(r.Job.StartedAt)), w, plan)
 	}
 	if r.Status == state.StatusOffline {
-		return nameRow(v, r, v.Theme.Offline.Render("offline "+r.Service), w)
+		return nameRow(v, r, v.Theme.Offline.Render("offline "+r.Service), w, plan)
 	}
-	return nameRow(v, r, idleRight(v, r, now), w)
+	return nameRow(v, r, idleRight(v, r, now, plan, w), w, plan)
 }
 
-// recentLines prints one aligned row per result. Narrow screens drop the status word and the runner.
-func recentLines(v View, results []state.Result, wide bool) []string {
+// recentLines sizes each column to its content and trims the widest first. Narrow screens drop the status word and the runner.
+func recentLines(v View, results []state.Result, wide bool, names short) []string {
 	t, g := v.Theme, v.Glyphs
-	statusW, columns := 1, 6
-	if wide {
-		statusW, columns = 12, 7
+	statusW, tookW := 1, 0
+	texts := make([][4]string, len(results))
+	var widths [4]int // repo, job, branch, runner
+	for i, res := range results {
+		texts[i] = [4]string{names.repo(res.Repo), jobLabel(res.Workflow, res.Name, g.Sep), res.Branch, names.runner(res.Runner)}
+		for col, text := range texts[i] {
+			widths[col] = max(widths[col], width(text))
+		}
+		tookW = max(tookW, len(clock(time.Duration(res.Duration))))
+		glyph, _ := conclusionGlyph(v, res.Conclusion)
+		statusW = max(statusW, width(glyph)+1+len(res.Conclusion))
 	}
-	flexible := max(v.Width-1-5-statusW-6-2*(columns-1), 32)
-	repoW, jobW := flexible*36/100, flexible*36/100
-	if wide {
-		repoW, jobW = flexible*28/100, flexible*24/100
+	gaps := 2 * 6
+	if !wide {
+		statusW, widths[3], gaps = 1, 0, 2*5
 	}
-	branchW := flexible - repoW - jobW
-	runnerW := 0
-	if wide {
-		branchW = flexible * 24 / 100
-		runnerW = flexible - repoW - jobW - branchW
-	}
+	shrinkToFit(widths[:], v.Width-1-5-statusW-tookW-gaps)
 	var lines []string
-	for _, res := range results {
+	for i, res := range results {
 		glyph, style := conclusionGlyph(v, res.Conclusion)
 		status := glyph
 		if wide {
 			status += " " + res.Conclusion
 		}
+		cell := func(col int, style lipgloss.Style) string {
+			return pad(style.Render(fit(texts[i][col], widths[col], g.More)), widths[col])
+		}
 		cells := []string{
 			t.Dim.Render(res.FinishedAt.In(v.Loc).Format("15:04")),
 			pad(style.Render(status), statusW),
-			pad(t.Text.Render(fit(res.Repo, repoW, g.More)), repoW),
-			pad(t.Text.Render(fit(res.Workflow+" "+g.Sep+" "+res.Name, jobW, g.More)), jobW),
-			pad(t.Dim.Render(fit(res.Branch, branchW, g.More)), branchW),
-			t.Text.Render(fmt.Sprintf("%6s", clock(time.Duration(res.Duration)))),
+			cell(0, t.Text),
+			cell(1, t.Text),
+			cell(2, t.Dim),
+			t.Text.Render(fmt.Sprintf("%*s", tookW, clock(time.Duration(res.Duration)))),
 		}
-		if runnerW > 0 {
-			cells = append(cells, t.Dim.Render(fit(res.Runner, runnerW, g.More)))
+		if wide {
+			cells = append(cells, cell(3, t.Dim))
 		}
-		lines = append(lines, " "+strings.Join(cells, "  "))
+		lines = append(lines, strings.TrimRight(" "+strings.Join(cells, "  "), " "))
 	}
 	return lines
+}
+
+func shrinkToFit(widths []int, room int) {
+	for {
+		widest, total := 0, 0
+		for i, w := range widths {
+			total += w
+			if w > widths[widest] {
+				widest = i
+			}
+		}
+		if total <= room || widths[widest] <= 4 {
+			return
+		}
+		widths[widest]--
+	}
 }
 
 func loadStyle(t Theme, pct float64) lipgloss.Style {
@@ -422,7 +547,8 @@ func loadStyle(t Theme, pct float64) lipgloss.Style {
 	return t.Idle
 }
 
-func hostLines(v View, snap state.Snapshot) []string {
+// hostLines puts the containers on at most maxLines lines, or as many as they need when maxLines is 0.
+func hostLines(v View, snap state.Snapshot, maxLines int) []string {
 	t, g, h := v.Theme, v.Glyphs, snap.Host
 	if snap.TakenAt.IsZero() {
 		return []string{" " + t.Dim.Render("Reading host load..."), ""}
@@ -431,24 +557,67 @@ func hostLines(v View, snap state.Snapshot) []string {
 	if h.MemTotal > 0 {
 		memPct = 100 * float64(h.MemUsed) / float64(h.MemTotal)
 	}
-	first := " " + t.Dim.Render("cpu ") + t.Text.Render(fmt.Sprintf("%3.0f%% ", h.CPUPct)) + bar(h.CPUPct/100, 10, g, loadStyle(t, h.CPUPct), t.Dim) +
-		"   " + t.Dim.Render("mem ") + t.Text.Render(fmt.Sprintf("%.1f/%.1fG ", float64(h.MemUsed)/(1<<30), float64(h.MemTotal)/(1<<30))) + bar(memPct/100, 10, g, loadStyle(t, memPct), t.Dim) +
-		"   " + t.Dim.Render("load ") + t.Text.Render(fmt.Sprintf("%.2f %.2f %.2f", h.Load1, h.Load5, h.Load15)) + t.Dim.Render(fmt.Sprintf(" /%d", h.CPUs)) +
-		"   " + t.Dim.Render("up ") + t.Text.Render(uptime(time.Duration(h.Uptime)))
-	var parts []string
+	load := func(cells int) string {
+		return " " + t.Dim.Render("cpu ") + t.Text.Render(fmt.Sprintf("%3.0f%% ", h.CPUPct)) + bar(h.CPUPct/100, cells, g, loadStyle(t, h.CPUPct), t.Dim) +
+			"   " + t.Dim.Render("mem ") + t.Text.Render(fmt.Sprintf("%.1f/%.1fG ", float64(h.MemUsed)/(1<<30), float64(h.MemTotal)/(1<<30))) + bar(memPct/100, cells, g, loadStyle(t, memPct), t.Dim) +
+			"   " + t.Dim.Render("load ") + t.Text.Render(fmt.Sprintf("%.2f %.2f %.2f", h.Load1, h.Load5, h.Load15)) + t.Dim.Render(fmt.Sprintf(" /%d", h.CPUs)) +
+			"   " + t.Dim.Render("up ") + t.Text.Render(uptime(time.Duration(h.Uptime)))
+	}
+	first := load(10)
+	if over := width(first) - (v.Width - 1); over > 0 {
+		first = load(max(10-(over+1)/2, 3))
+	}
+	return append([]string{first}, containerLines(v, snap, maxLines)...)
+}
+
+// containerLines lays the containers out as a grid of equal cells, balanced over as few lines as fit.
+func containerLines(v View, snap state.Snapshot, maxLines int) []string {
+	t := v.Theme
+	type usage struct {
+		name  string
+		stats *state.ContainerStats
+	}
+	var all []usage
+	var containers []string
 	seen := map[string]bool{}
 	for _, r := range snap.Runners {
 		name := "host"
 		if r.Placement.Kind == scan.KindIncus {
-			name = strings.TrimPrefix(r.Placement.Container, "runner-")
+			name = r.Placement.Container
+			containers = append(containers, name)
 		}
 		if seen[name] || r.Container == nil {
 			continue
 		}
 		seen[name] = true
-		parts = append(parts, t.Dim.Render(name+" ")+t.Text.Render(fmt.Sprintf("%.0f%% %s", r.Container.CPUPct, gib(r.Container.MemBytes))))
+		all = append(all, usage{name, r.Container})
 	}
-	return []string{first, " " + strings.Join(parts, "   ")}
+	if len(all) == 0 {
+		return nil
+	}
+	prefix := sharedFirstWord(containers)
+	nameW := 0
+	for i := range all {
+		all[i].name = strings.TrimPrefix(all[i].name, prefix)
+		nameW = max(nameW, width(all[i].name))
+	}
+	const gap = 3
+	cellW := nameW + len(" 100% 12.3G")
+	fits := max((v.Width-1+gap)/(cellW+gap), 1)
+	rows := (len(all) + fits - 1) / fits
+	if maxLines > 0 {
+		rows = min(rows, maxLines)
+	}
+	perLine := (len(all) + rows - 1) / rows
+	var lines []string
+	for start := 0; start < len(all); start += perLine {
+		var cells []string
+		for _, u := range all[start:min(start+perLine, len(all))] {
+			cells = append(cells, t.Dim.Render(pad(u.name, nameW))+t.Text.Render(fmt.Sprintf(" %3.0f%% %5s", u.stats.CPUPct, gib(u.stats.MemBytes))))
+		}
+		lines = append(lines, " "+strings.Join(cells, strings.Repeat(" ", gap)))
+	}
+	return lines
 }
 
 func footer(v View, snap state.Snapshot, now time.Time) string {
