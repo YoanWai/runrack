@@ -48,6 +48,7 @@ runrack --demo          # a made-up rack, to try it without runners
 | `--no-api` | local data only, even when a token is around |
 | `--color auto\|none\|16\|256\|truecolor` | color profile, detected by default |
 | `--glyphs auto\|unicode\|console\|ascii` | symbol set, `console` on the Linux console, also inside a tmux attached to it |
+| `--no-host` | leave out the HOST strip, for a board that sits next to another system monitor |
 | `--containers GLOB` | only look inside Incus containers matching the glob |
 | `--timeout 10s` | time limit for `--json`, `--once` and `doctor` |
 | `--width N` | board width for `--once` |

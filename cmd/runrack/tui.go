@@ -18,7 +18,7 @@ import (
 func newView(opts options) (ui.View, colorprofile.Profile) {
 	profile, _ := ui.ParseColor(opts.color)
 	glyphs, _ := ui.ParseGlyphs(opts.glyphs)
-	return ui.View{Theme: ui.NewTheme(profile), Glyphs: glyphs, Loc: time.Local}, profile
+	return ui.View{Theme: ui.NewTheme(profile), Glyphs: glyphs, Loc: time.Local, HideHost: opts.noHost}, profile
 }
 
 func runTUI(opts options, stderr io.Writer) int {

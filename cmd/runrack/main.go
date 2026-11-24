@@ -26,6 +26,7 @@ type options struct {
 	noAPI      bool
 	color      string
 	glyphs     string
+	noHost     bool
 	containers string
 	timeout    time.Duration
 	demo       bool
@@ -74,6 +75,7 @@ func parseFlags(args []string, stderr io.Writer) (options, error) {
 	fs.StringVar(&opts.color, "color", "auto", "auto|none|16|256|truecolor")
 	fs.StringVar(&opts.glyphs, "glyphs", "auto", "auto|unicode|console|ascii")
 	fs.StringVar(&opts.containers, "containers", "*", "only watch Incus containers matching this glob")
+	fs.BoolVar(&opts.noHost, "no-host", false, "leave out the HOST strip, for a board next to another system monitor")
 	fs.DurationVar(&opts.timeout, "timeout", 10*time.Second, "time limit for --json, --once and doctor")
 	fs.BoolVar(&opts.demo, "demo", false, "show a made-up rack of runners")
 	fs.BoolVar(&opts.jsonOut, "json", false, "print one snapshot as JSON and exit")

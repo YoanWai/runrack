@@ -30,6 +30,7 @@ type View struct {
 	Loc           *time.Location
 	Selected      string
 	ShowSelection bool
+	HideHost      bool
 }
 
 type group struct {
@@ -246,19 +247,28 @@ func layoutBoard(v View, snap state.Snapshot, now time.Time) boardParts {
 	if wide {
 		recentLines *= 2
 	}
-	host := hostLines(v, snap, 0)
+	var host []string
+	if !v.HideHost {
+		host = hostLines(v, snap, 0)
+	}
 	board := boardLines(v, snap, now, false)
 	top := len(legendLines(v))
-	room := func() int { return v.Height - 7 - top - len(host) - recentLines } // header, blanks, titles and footer
+	chrome := 7 // header, blanks, titles and footer
+	if v.HideHost {
+		chrome -= 2
+	}
+	room := func() int { return v.Height - chrome - top - len(host) - recentLines }
 	if v.Height > 0 && len(board) > room() {
 		board = boardLines(v, snap, now, true)
-		if len(board) > room() {
+		if len(board) > room() && !v.HideHost {
 			host = hostLines(v, snap, 1)
 		}
 		board = board[:min(len(board), max(room(), 0))]
 	}
-	bottom := append([]string{"", sectionTitle(v, "HOST", "")}, host...)
-	bottom = append(bottom, footer(v, snap, now))
+	bottom := []string{footer(v, snap, now)}
+	if !v.HideHost {
+		bottom = append(append([]string{"", sectionTitle(v, "HOST", "")}, host...), bottom...)
+	}
 	parts := boardParts{board: board, bottom: bottom, recentRows: len(snap.Recent), wide: wide}
 	if v.Height > 0 {
 		room := v.Height - 4 - top - len(bottom) - len(board)
