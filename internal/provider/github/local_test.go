@@ -45,7 +45,17 @@ func TestParseRunnerFileStripsBOM(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if file.AgentName != "zenbook-acme-1" || file.AgentID != 234 || file.GitHubURL != "https://github.com/acme" {
+	if file.AgentName != "zenbook-acme-1" || file.GitHubURL != "https://github.com/acme" {
+		t.Fatalf("got %+v", file)
+	}
+}
+
+func TestParseRunnerFileFromJITConfig(t *testing.T) {
+	file, err := ParseRunnerFile(fixture(t, "github/runner-jit.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if file.AgentName != "zenbook-acme-1" || file.GitHubURL != "https://github.com/acme" {
 		t.Fatalf("got %+v", file)
 	}
 }

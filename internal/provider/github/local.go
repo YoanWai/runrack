@@ -24,7 +24,6 @@ const (
 )
 
 type runnerFile struct {
-	AgentID   int64  `json:"agentId"`
 	AgentName string `json:"agentName"`
 	GitHubURL string `json:"gitHubUrl"`
 }

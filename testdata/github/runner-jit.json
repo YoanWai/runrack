@@ -1,0 +1,1 @@
+{"AgentId":"30","AgentName":"zenbook-acme-1","DisableUpdate":"True","Ephemeral":"True","PoolId":"1","PoolName":null,"ServerUrl":"https://pipelines.example.invalid/","WorkFolder":"_work","GitHubUrl":"https://github.com/acme","ServerUrlV2":"https://broker.actions.githubusercontent.com/","UseV2Flow":"true"}
