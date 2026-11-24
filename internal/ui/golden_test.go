@@ -61,6 +61,7 @@ func TestDetailAndHelpGolden(t *testing.T) {
 		}{
 			{"detail_busy", Detail(view, snap, snap.Runners[0].Key, goldenNow)},
 			{"detail_idle", Detail(view, snap, snap.Runners[1].Key, goldenNow)},
+			{"detail_run", RunDetail(view, snap, runKey(snap.Recent[0]), goldenNow)},
 			{"help", Help(view)},
 		} {
 			t.Run(screen.name+"_"+combo.name, func(t *testing.T) {
@@ -137,12 +138,13 @@ func TestBoardKeepsLongNamesWholeOnTV(t *testing.T) {
 			snap.Runners[i].Last = &long
 		}
 	}
-	snap.Recent[0].Branch = "fix/ci-preview-comment-old-gh"
+	snap.Recent[1].Branch = "fix/ci-preview-comment-old-gh"
+	snap.Recent[0].Title = "fix: keep the preview comment working on older gh releases"
 	view := View{Width: 120, Height: 66, Theme: NewTheme(colorprofile.ANSI), Glyphs: ConsoleGlyphs, Loc: time.UTC}
 	out := Board(view, snap, goldenNow)
 	checkFrame(t, out, 120, 66, true)
 	plain := ansi.Strip(out)
-	for _, want := range []string{"Preview deploy > deploy to staging", "fix/ci-preview-comment-old-gh", "globex-2", "acme-1 "} {
+	for _, want := range []string{"Preview deploy > deploy to staging", "push to fix/ci-preview-comment-old-gh", "PR #14 fix: keep the preview comment working on older gh releases", "globex-2", "acme-1 "} {
 		if !strings.Contains(plain, want) {
 			t.Errorf("board lacks %q:\n%s", want, plain)
 		}

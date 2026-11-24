@@ -1,6 +1,8 @@
 package demo
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/YoanWai/runrack/internal/scan"
@@ -31,16 +33,30 @@ func World(start, now time.Time) state.Snapshot {
 	globexJob := &state.Job{
 		ID: "9a8b7c6d-5e4f-4a3b-2c1d-0e9f8a7b6c5d", Name: "check", Repo: "globex/site", Workflow: "CI",
 		Branch: "main", Event: "push", Actor: "octocat", SHA: "4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f",
-		URL: "https://github.com/globex/site/actions/runs/45229199120", RunID: 45229199120, RunNumber: 88, Attempt: 1,
-		StartedAt: at(-12 * time.Second), Source: state.SourceDiag,
+		Title: "feat: dark mode for the status page",
+		URL:   "https://github.com/globex/site/actions/runs/45229199120", RunID: 45229199120, RunNumber: 88, Attempt: 1,
+		StartedAt: at(-12 * time.Second), StepCount: 6, Source: state.SourceDiag,
+	}
+	failedSteps := []state.Step{
+		{Name: "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1", Status: state.StepCompleted, Conclusion: state.ConclusionSuccess, Duration: state.Duration(2 * time.Second)},
+		{Name: "Run actions/setup-node@v5", Status: state.StepCompleted, Conclusion: state.ConclusionSuccess, Duration: state.Duration(9 * time.Second)},
+		{Name: "Run npm ci", Status: state.StepCompleted, Conclusion: state.ConclusionSuccess, Duration: state.Duration(21 * time.Second)},
+		{Name: "Run npm test", Status: state.StepCompleted, Conclusion: state.ConclusionFailure, Duration: state.Duration(22 * time.Second)},
+		{Name: "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1", Status: state.StepCompleted, Conclusion: state.ConclusionSuccess},
 	}
 	recent := []state.Result{
-		result("zenbook-acme-3", "acme", "acme/widgets", "check", "ci/homelab-runner", state.ConclusionFailure, at(-7*time.Minute), 55*time.Second),
-		result("zenbook-globex-1", "globex", "globex/site", "check", "main", state.ConclusionSuccess, at(-8*time.Minute), 96*time.Second),
-		result("zenbook-acme-1", "acme", "acme/widgets", "check", "main", state.ConclusionSuccess, at(-30*time.Minute), 118*time.Second),
-		result("zenbook-acme-2", "acme", "acme/widgets", "check", "main", state.ConclusionSuccess, at(-36*time.Minute), 121*time.Second),
-		result("zenbook-globex-2", "globex", "globex/site", "build", "feat/tv-layout", state.ConclusionCancelled, at(-51*time.Minute), 130*time.Second),
-		result("zenbook-globex-2", "globex", "globex/site", "build", "main", state.ConclusionFailure, at(-62*time.Minute), 141*time.Second),
+		result("zenbook-acme-3", "acme/widgets", "check", state.ConclusionFailure, at(-7*time.Minute), 55*time.Second,
+			state.Job{Event: "pull_request", Branch: "ci/homelab-runner", BaseBranch: "main", PR: 14, Title: "fix: homelab runner labels", RunNumber: 15, Steps: failedSteps, StepCount: 4}),
+		result("zenbook-globex-1", "globex/site", "check", state.ConclusionSuccess, at(-8*time.Minute), 96*time.Second,
+			state.Job{Event: "push", Branch: "main", Title: "docs: tidy the install guide", RunNumber: 87}),
+		result("zenbook-acme-1", "acme/widgets", "check", state.ConclusionSuccess, at(-30*time.Minute), 118*time.Second,
+			state.Job{Event: "push", Branch: "main", Title: "chore: bump node to 24", RunNumber: 13}),
+		result("zenbook-acme-2", "acme/widgets", "check", state.ConclusionSuccess, at(-36*time.Minute), 121*time.Second,
+			state.Job{Event: "schedule", Branch: "main", RunNumber: 12}),
+		result("zenbook-globex-2", "globex/site", "build", state.ConclusionCancelled, at(-51*time.Minute), 130*time.Second,
+			state.Job{Event: "pull_request", Branch: "feat/tv-layout", BaseBranch: "main", PR: 31, Title: "feat: TV layout", RunNumber: 86}),
+		result("zenbook-globex-2", "globex/site", "build", state.ConclusionFailure, at(-62*time.Minute), 141*time.Second,
+			state.Job{Event: "workflow_dispatch", Branch: "main", RunNumber: 85, Attempt: 2}),
 	}
 	lastOf := func(runner string) *state.Result {
 		for i := range recent {
@@ -85,14 +101,18 @@ func World(start, now time.Time) state.Snapshot {
 	}
 }
 
-func result(runner, scope, repo, job, branch, conclusion string, finished time.Time, took time.Duration) state.Result {
+// result fills in what every demo run shares around the trigger fields of why.
+func result(runner, repo, job, conclusion string, finished time.Time, took time.Duration, why state.Job) state.Result {
+	scope, _, _ := strings.Cut(repo, "/")
+	why.ID, why.Name, why.Repo, why.Workflow = runner+"-"+finished.Format("150405"), job, repo, "CI"
+	why.Actor, why.StartedAt, why.Source = "octocat", finished.Add(-took), state.SourceDiag
+	why.Attempt = max(why.Attempt, 1)
+	why.URL = fmt.Sprintf("https://github.com/%s/actions/runs/%d", repo, 45229100000+why.RunNumber)
 	return state.Result{
-		RunnerID: "github/incus:runner-" + scope + "-" + runner[len(runner)-1:] + "/" + runner,
-		Runner:   runner,
-		Job: state.Job{
-			ID: runner + "-" + finished.Format("150405"), Name: job, Repo: repo, Workflow: "CI", Branch: branch,
-			StartedAt: finished.Add(-took), Source: state.SourceDiag,
-		},
+		RunnerID:   "github/incus:runner-" + scope + "-" + runner[len(runner)-1:] + "/" + runner,
+		Runner:     runner,
+		Scope:      scope,
+		Job:        why,
 		Conclusion: conclusion,
 		FinishedAt: finished,
 		Duration:   state.Duration(took),

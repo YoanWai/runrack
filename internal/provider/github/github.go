@@ -115,7 +115,7 @@ func (p *Provider) ReadJob(ctx context.Context, t target.Target, ref provider.Ru
 	if err != nil {
 		return state.Result{}, err
 	}
-	lines, err := t.Grep(ctx, logPath, patternStep, patternResult)
+	lines, err := t.Grep(ctx, logPath, patternStep, patternStepResult, patternResult)
 	if err != nil {
 		return state.Result{}, err
 	}

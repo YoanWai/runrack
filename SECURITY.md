@@ -14,13 +14,15 @@ It reads:
 - `/proc/loadavg`, `/proc/stat`, `/proc/meminfo`, `/proc/uptime`
 - `<runner>/.runner` (name, id, GitHub URL)
 - `<runner>/_diag/Runner_*.log` lines with the version, architecture and configured labels
-- `<runner>/_diag/Worker_*.log`: the first 2 MiB for the job message, and lines with step starts and the final result
+- `<runner>/_diag/Worker_*.log`: the first 2 MiB for the job message, and lines with step starts, step results and the final result
 - output of `systemctl list-units 'actions.runner.*'`, `systemctl show -p WorkingDirectory <runner unit>` and `incus list -f json`
 - the GitHub REST API, only when a token is available, only `GET` requests
 
 It never reads `.credentials`, `.credentials_rsaparams`, `.env` or `.path`, never reads a path containing `..`, and never runs `Runner.Listener` itself.
 
-From the Worker log's job message it keeps the repository, workflow, run id, number and attempt, refs, event, actor, commit and server URL. The rest of the message, masked secrets included, is skipped by the JSON decoder. Nothing is written to disk.
+From the Worker log's job message it keeps the repository, workflow, run id, number and attempt, refs, event, actor, commit, server URL, the PR title or the pushed commit's subject, and the number of steps. The rest of the message, masked secrets included, is skipped by the JSON decoder.
+
+It writes one file: finished jobs as shown on the board, in `$XDG_STATE_HOME/runrack/history.json` (default `~/.local/state/runrack/history.json`), in a directory only the user can read.
 
 ## The command allowlist
 

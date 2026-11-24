@@ -96,16 +96,48 @@ func TestParseJobMessageKeepsOnlyWhitelist(t *testing.T) {
 		ID: "377760b2-12b0-5774-8f85-8ee535fa5f51", Name: "e2e", Repo: "acme/widgets", Workflow: "CI",
 		Branch: "ci/homelab-runner", BaseBranch: "main", Event: "pull_request", Actor: "octocat",
 		SHA: "c0a9cbb51e2d4f8a9b7c6d5e4f3a2b1c0d9e8f7a", URL: "https://github.com/acme/widgets/actions/runs/45229190085",
-		RunID: 45229190085, RunNumber: 16, Attempt: 1, PR: 14, Source: state.SourceDiag,
+		RunID: 45229190085, RunNumber: 16, Attempt: 1, PR: 14, Title: "fix: homelab runner labels", StepCount: 9, Source: state.SourceDiag,
 	}
 	gotJSON, _ := json.Marshal(job)
 	wantJSON, _ := json.Marshal(want)
 	if !bytes.Equal(gotJSON, wantJSON) {
 		t.Fatalf("got  %s\nwant %s", gotJSON, wantJSON)
 	}
-	for _, leaked := range []string{"***", "isSecret", "AccessToken", "repository_owner_id", "actor_id", "CacheServerUrl", "billingOwnerId"} {
+	for _, leaked := range []string{"***", "isSecret", "AccessToken", "repository_owner_id", "actor_id", "CacheServerUrl", "billingOwnerId", "Long description"} {
 		if bytes.Contains(gotJSON, []byte(leaked)) {
 			t.Errorf("parsed job carries %q", leaked)
+		}
+	}
+}
+
+func TestParseJobMessageTitleFromPushedCommit(t *testing.T) {
+	job, err := ParseJobMessage(fixture(t, "github/Worker_20261123-173750-utc.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if job.Event != "push" || job.Title != "chore: scan history for secrets" || job.StepCount != 3 {
+		t.Fatalf("got event %q title %q steps %d", job.Event, job.Title, job.StepCount)
+	}
+}
+
+func TestEventTitle(t *testing.T) {
+	dict := func(pairs ...string) string {
+		var d []string
+		for i := 0; i < len(pairs); i += 2 {
+			d = append(d, `{"k":"`+pairs[i]+`","v":`+pairs[i+1]+`}`)
+		}
+		return `{"t":2,"d":[` + strings.Join(d, ",") + `]}`
+	}
+	cases := map[string]string{
+		dict("workflow_run", dict("display_title", `"Preview for #84"`)):       "Preview for #84",
+		dict("inputs", "null", "ref", `"refs/heads/main"`):                     "",
+		dict("head_commit", dict("message", `"  fix: tidy\u001b[2J\n\nbody"`)): "fix: tidy[2J",
+		dict("pull_request", `"not a dictionary"`):                             "",
+		`"not a dictionary"`: "",
+	}
+	for event, want := range cases {
+		if got := eventTitle(json.RawMessage(event)); got != want {
+			t.Errorf("eventTitle(%s) = %q, want %q", event, got, want)
 		}
 	}
 }
@@ -141,7 +173,7 @@ func TestParseSteps(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.log, func(t *testing.T) {
-			got := ParseSteps(grepFixture(t, "github/"+tc.log, patternStep, patternResult))
+			got := ParseSteps(grepFixture(t, "github/"+tc.log, patternStep, patternStepResult, patternResult))
 			if got.Conclusion != tc.conclusion || len(got.Steps) != tc.steps || got.FinishedAt.Format(time.RFC3339) != tc.finished {
 				t.Fatalf("got %s, %d steps, finished %s", got.Conclusion, len(got.Steps), got.FinishedAt.Format(time.RFC3339))
 			}
@@ -158,6 +190,21 @@ func TestParseSteps(t *testing.T) {
 				t.Fatalf("last step %q, want a Post Run step", last.Name)
 			}
 		})
+	}
+}
+
+func TestParseStepsKeepsEachStepResult(t *testing.T) {
+	got := ParseSteps(grepFixture(t, "github/Worker_20261123-173811-utc.log", patternStep, patternStepResult, patternResult))
+	want := map[string]string{
+		"Install browsers":               state.ConclusionSuccess,
+		"Editor end to end":              state.ConclusionFailure,
+		"Website":                        "skipped",
+		"Post Run actions/setup-node@v7": "skipped",
+	}
+	for _, step := range got.Steps {
+		if conclusion, ok := want[step.Name]; ok && step.Conclusion != conclusion {
+			t.Errorf("%s: %q, want %q", step.Name, step.Conclusion, conclusion)
+		}
 	}
 }
 

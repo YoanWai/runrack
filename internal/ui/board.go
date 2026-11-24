@@ -17,8 +17,9 @@ const (
 	narrowRecent = 100
 	minCardWidth = 56
 	// idleWidth covers " idle", the conclusion, the age of the last job and the gaps between them.
-	idleWidth  = 26
-	cardChrome = 8
+	idleWidth      = 26
+	cardChrome     = 8
+	busyBadgeWidth = len(" BUSY 0:00 ")
 )
 
 type View struct {
@@ -95,9 +96,9 @@ func (s short) repo(repo string) string {
 func (s short) runner(name string) string { return strings.TrimPrefix(name, s.prefix) }
 
 type cards struct {
-	names       short
-	nameW, jobW int
-	columns     int
+	names              short
+	nameW, jobW, busyW int
+	columns            int
 }
 
 // planCards puts groups side by side only while every card still shows each runner's last job in full.
@@ -108,8 +109,13 @@ func planCards(snap state.Snapshot, groupCount, w int) cards {
 		if r.Last != nil {
 			c.jobW = max(c.jobW, width(jobLabel(r.Last.Workflow, r.Last.Name, ">")))
 		}
+		if r.Status == state.StatusBusy && r.Job != nil && r.Job.HasMetadata() {
+			head := busyBadgeWidth + 2 + width(c.names.repo(r.Job.Repo)) + 2 + width(jobLabel(r.Job.Workflow, r.Job.Name, ">"))
+			why := width(strings.Join(whyParts(r.Job, ASCIIGlyphs), " - "))
+			c.busyW = max(c.busyW, head, why)
+		}
 	}
-	need := max(cardChrome+c.nameW+idleWidth+c.jobW, minCardWidth)
+	need := max(cardChrome+c.nameW+max(idleWidth+c.jobW, c.busyW), minCardWidth)
 	c.columns = max(min((w+1)/(need+1), maxColumns, groupCount), 1)
 	if w < compactBelow {
 		c.columns = 1
@@ -124,7 +130,15 @@ func noteWidth(r state.Runner) int {
 	return 0
 }
 
-func jobLabel(workflow, name, sep string) string { return workflow + " " + sep + " " + name }
+const noJobDetails = "job details not read"
+
+// jobLabel is "workflow › job", or says the Worker log was gone before runrack read it.
+func jobLabel(workflow, name, sep string) string {
+	if workflow == "" && name == "" {
+		return noJobDetails
+	}
+	return workflow + " " + sep + " " + name
+}
 
 // layout packs groups into columns, each group into the currently shortest column.
 func layout(gs []group, cols int, compact bool) [][]group {
@@ -158,7 +172,7 @@ func runnerHeight(r state.Runner, compact bool) int {
 	case !r.Job.HasMetadata() || compact:
 		return 2
 	}
-	return 4
+	return 3
 }
 
 func Order(snap state.Snapshot, w int) [][]string {
@@ -178,11 +192,21 @@ func Order(snap state.Snapshot, w int) [][]string {
 	return order
 }
 
-func Board(v View, snap state.Snapshot, now time.Time) string {
-	lines := []string{header(v, snap, now), ""}
+type boardParts struct {
+	board, bottom []string
+	recentRows    int
+	wide          bool
+}
+
+func layoutBoard(v View, snap state.Snapshot, now time.Time) boardParts {
+	wide := v.Width >= narrowRecent
+	recentLines := minRecent
+	if wide {
+		recentLines *= 2
+	}
 	host := hostLines(v, snap, 0)
 	board := boardLines(v, snap, now, false)
-	room := func() int { return v.Height - 7 - len(host) - minRecent } // header, blanks, titles and footer
+	room := func() int { return v.Height - 7 - len(host) - recentLines } // header, blanks, titles and footer
 	if v.Height > 0 && len(board) > room() {
 		board = boardLines(v, snap, now, true)
 		if len(board) > room() {
@@ -192,12 +216,40 @@ func Board(v View, snap state.Snapshot, now time.Time) string {
 	}
 	bottom := append([]string{"", sectionTitle(v, "HOST", "")}, host...)
 	bottom = append(bottom, footer(v, snap, now))
-	fixed := 4 + len(bottom)
-	lines = append(lines, board...)
-	recentRows := len(snap.Recent)
+	parts := boardParts{board: board, bottom: bottom, recentRows: len(snap.Recent), wide: wide}
 	if v.Height > 0 {
-		recentRows = min(recentRows, max(v.Height-fixed-len(board), minRecent))
+		room := v.Height - 4 - len(bottom) - len(board)
+		used := 0
+		for i, res := range snap.Recent {
+			used += runHeight(res, parts.wide)
+			if used > max(room, recentLines) {
+				parts.recentRows = i
+				break
+			}
+		}
 	}
+	return parts
+}
+
+func runHeight(res state.Result, wide bool) int {
+	if wide && res.HasMetadata() {
+		return 2
+	}
+	return 1
+}
+
+// ShownRuns are the keys of the finished runs the board has room for, top to bottom.
+func ShownRuns(v View, snap state.Snapshot) []string {
+	var keys []string
+	for _, res := range snap.Recent[:layoutBoard(v, snap, snap.TakenAt).recentRows] {
+		keys = append(keys, runKey(res))
+	}
+	return keys
+}
+
+func Board(v View, snap state.Snapshot, now time.Time) string {
+	parts := layoutBoard(v, snap, now)
+	lines := append([]string{header(v, snap, now), ""}, parts.board...)
 	lines = append(lines, "", sectionTitle(v, "RECENT", recentTally(v, snap.Recent)))
 	switch {
 	case snap.TakenAt.IsZero():
@@ -205,14 +257,14 @@ func Board(v View, snap state.Snapshot, now time.Time) string {
 	case len(snap.Recent) == 0:
 		lines = append(lines, " "+v.Theme.Dim.Render("No finished jobs in the last 24 hours."))
 	default:
-		lines = append(lines, recentLines(v, snap.Recent[:recentRows], v.Width >= narrowRecent, shortener(snap))...)
+		lines = append(lines, recentLines(v, snap.Recent[:parts.recentRows], parts.wide, shortener(snap))...)
 	}
 	if v.Height > 0 {
-		for len(lines)+len(bottom) < v.Height {
+		for len(lines)+len(parts.bottom) < v.Height {
 			lines = append(lines, "")
 		}
 	}
-	lines = append(lines, bottom...)
+	lines = append(lines, parts.bottom...)
 	if v.Height > 0 && len(lines) > v.Height {
 		lines = lines[:v.Height]
 	}
@@ -224,13 +276,15 @@ func Board(v View, snap state.Snapshot, now time.Time) string {
 
 func header(v View, snap state.Snapshot, now time.Time) string {
 	t, g := v.Theme, v.Glyphs
-	busy, idle, offline := 0, 0, 0
+	busy, idle, offline, starting := 0, 0, 0, 0
 	for _, r := range snap.Runners {
 		switch r.Status {
 		case state.StatusBusy:
 			busy++
 		case state.StatusOffline:
 			offline++
+		case state.StatusStarting:
+			starting++
 		default:
 			idle++
 		}
@@ -243,6 +297,9 @@ func header(v View, snap state.Snapshot, now time.Time) string {
 	counts := busyStyle.Render(fmt.Sprintf("%s %d busy", g.Busy, busy)) + "   " +
 		t.Idle.Render(fmt.Sprintf("%s %d idle", g.Idle, idle)) + "   " +
 		t.Offline.Render(fmt.Sprintf("%s %d offline", g.Offline, offline))
+	if starting > 0 {
+		counts += "   " + t.Dim.Render(fmt.Sprintf("%s %d starting", g.Idle, starting))
+	}
 	right := t.Text.Render(now.In(v.Loc).Format("Mon 2 Jan  15:04:05")) + " "
 	if v.Width < 100 {
 		right = t.Text.Render(now.In(v.Loc).Format("15:04:05")) + " "
@@ -355,6 +412,8 @@ func statusGlyph(v View, r state.Runner) string {
 		return v.Theme.Busy.Render(v.Glyphs.Busy)
 	case state.StatusOffline:
 		return v.Theme.Offline.Render(v.Glyphs.Offline)
+	case state.StatusStarting:
+		return v.Theme.Dim.Render(v.Glyphs.Idle)
 	}
 	return v.Theme.Idle.Render(v.Glyphs.Idle)
 }
@@ -394,52 +453,49 @@ func busyBadge(v View, elapsed time.Duration) string {
 }
 
 func runnerLines(v View, r state.Runner, w int, now time.Time, compact bool, plan cards) []string {
-	t, g := v.Theme, v.Glyphs
+	t := v.Theme
 	switch {
 	case r.Status == state.StatusOffline:
 		return []string{nameRow(v, r, t.Offline.Render("offline  "+r.Service), w, plan)}
+	case r.Status == state.StatusStarting:
+		return []string{nameRow(v, r, t.Dim.Render(" starting"), w, plan)}
 	case r.Status != state.StatusBusy || r.Job == nil:
 		return []string{nameRow(v, r, idleRight(v, r, now, plan, w), w, plan)}
 	}
 	job := r.Job
-	repo := plan.names.repo(job.Repo)
-	elapsed := now.Sub(job.StartedAt)
-	lines := []string{nameRow(v, r, busyBadge(v, elapsed), w, plan)}
+	indent := strings.Repeat(" ", plan.nameW+4)
+	head := busyBadge(v, now.Sub(job.StartedAt))
 	if !job.HasMetadata() {
-		note := "starting"
-		if r.Note != "" {
-			note = r.Note
-		}
-		return append(lines, "  "+t.Dim.Render(note))
+		return []string{nameRow(v, r, head, w, plan), indent + busyStatus(v, r, now)}
 	}
-	workflow := t.Text.Render(job.Workflow) + t.Dim.Render(" "+g.Sep+" ") + t.Text.Render(job.Name)
-	step := ""
-	if current := job.CurrentStep(); current != "" {
-		step = t.Busy.Render(g.Step) + " " + t.Text.Render(current)
-	}
+	head += "  " + t.Title.Render(plan.names.repo(job.Repo)) + "  " + workflowJob(v, job)
+	lines := []string{nameRow(v, r, head, w, plan)}
 	if compact {
-		return append(lines, "  "+t.Dim.Render(repo)+"  "+workflow+"  "+step)
+		return append(lines, indent+stepText(v, job))
 	}
-	lines = append(lines, "  "+t.Text.Render(repo))
-	lines = append(lines, "  "+pad(workflow, 14)+"   "+t.Dim.Render(branchLine(job, g)))
+	return append(lines, indent+runWhy(v, job), indent+cardProgress(v, job, w-plan.nameW-4, now))
+}
+
+func cardProgress(v View, job *state.Job, w int, now time.Time) string {
+	t := v.Theme
+	elapsed := now.Sub(job.StartedAt)
 	progress := t.Text.Render(clock(elapsed))
 	if job.Expected > 0 {
-		cells := min(max(w/3, 8), 24)
 		expected := time.Duration(job.Expected)
-		progress = bar(float64(elapsed)/float64(expected), cells, g, t.Busy, t.Dim) + " " +
+		progress = bar(float64(elapsed)/float64(expected), min(max(w/4, 8), 20), v.Glyphs, t.Busy, t.Dim) + " " +
 			t.Text.Render(clock(elapsed)) + t.Dim.Render(" / ~"+clock(expected))
 	}
-	return append(lines, "  "+progress+"   "+step)
+	if step := stepText(v, job); step != "" {
+		progress += "   " + step
+	}
+	return progress
 }
 
 func branchLine(job *state.Job, g Glyphs) string {
-	switch {
-	case job.PR > 0:
-		return fmt.Sprintf("PR #%d  %s %s %s", job.PR, job.Branch, g.Arrow, job.BaseBranch)
-	case job.BaseBranch != "":
-		return fmt.Sprintf("%s %s %s", job.Branch, g.Arrow, job.BaseBranch)
+	if job.BaseBranch != "" {
+		return job.Branch + " " + g.Arrow + " " + job.BaseBranch
 	}
-	return job.Branch + "  " + job.Event
+	return job.Branch
 }
 
 // idleRight adds the repo of the last job only when it fits whole.
@@ -472,10 +528,14 @@ func listLine(v View, r state.Runner, w int, now time.Time, plan cards) string {
 	if r.Status == state.StatusOffline {
 		return nameRow(v, r, v.Theme.Offline.Render("offline "+r.Service), w, plan)
 	}
+	if r.Status == state.StatusStarting {
+		return nameRow(v, r, v.Theme.Dim.Render(" starting"), w, plan)
+	}
 	return nameRow(v, r, idleRight(v, r, now, plan, w), w, plan)
 }
 
-// recentLines sizes each column to its content and trims the widest first. Narrow screens drop the status word and the runner.
+// recentLines sizes each column to its content and trims the widest first. Wide screens give every run a second line
+// that says why it ran; narrow ones keep one line with the branch and drop the status word and the runner.
 func recentLines(v View, results []state.Result, wide bool, names short) []string {
 	t, g := v.Theme, v.Glyphs
 	statusW, tookW := 1, 0
@@ -490,11 +550,13 @@ func recentLines(v View, results []state.Result, wide bool, names short) []strin
 		glyph, _ := conclusionGlyph(v, res.Conclusion)
 		statusW = max(statusW, width(glyph)+1+len(res.Conclusion))
 	}
-	gaps := 2 * 6
-	if !wide {
-		statusW, widths[3], gaps = 1, 0, 2*5
+	if wide {
+		widths[2] = 0
+	} else {
+		statusW, widths[3] = 1, 0
 	}
-	shrinkToFit(widths[:], v.Width-1-5-statusW-tookW-gaps)
+	shrinkToFit(widths[:], v.Width-1-5-statusW-tookW-2*5)
+	indent := strings.Repeat(" ", 1+5+2+statusW+2)
 	var lines []string
 	for i, res := range results {
 		glyph, style := conclusionGlyph(v, res.Conclusion)
@@ -505,18 +567,25 @@ func recentLines(v View, results []state.Result, wide bool, names short) []strin
 		cell := func(col int, style lipgloss.Style) string {
 			return pad(style.Render(fit(texts[i][col], widths[col], g.More)), widths[col])
 		}
-		cells := []string{
-			t.Dim.Render(res.FinishedAt.In(v.Loc).Format("15:04")),
-			pad(style.Render(status), statusW),
-			cell(0, t.Text),
-			cell(1, t.Text),
-			cell(2, t.Dim),
-			t.Text.Render(fmt.Sprintf("%*s", tookW, clock(time.Duration(res.Duration)))),
+		clockStyle := t.Dim
+		if v.ShowSelection && v.Selected == runKey(res) {
+			clockStyle = t.Text.Reverse(true).Bold(true)
 		}
+		cells := []string{clockStyle.Render(res.FinishedAt.In(v.Loc).Format("15:04")), pad(style.Render(status), statusW), cell(0, t.Text), cell(1, t.Text)}
+		if !wide {
+			cells = append(cells, cell(2, t.Dim))
+		}
+		cells = append(cells, t.Text.Render(fmt.Sprintf("%*s", tookW, clock(time.Duration(res.Duration)))))
 		if wide {
 			cells = append(cells, cell(3, t.Dim))
+			if step := failedStep(&res.Job); step != "" {
+				cells = append(cells, style.Render(g.Step+" "+step))
+			}
 		}
 		lines = append(lines, strings.TrimRight(" "+strings.Join(cells, "  "), " "))
+		if runHeight(res, wide) == 2 {
+			lines = append(lines, indent+runWhy(v, &res.Job))
+		}
 	}
 	return lines
 }

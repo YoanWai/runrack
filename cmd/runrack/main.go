@@ -107,7 +107,10 @@ func parseFlags(args []string, stderr io.Writer) (options, error) {
 
 func newEngine(opts options) (*collect.Engine, string) {
 	client, source := apiClient(opts)
-	return collect.New(collect.Options{ProcRoot: "/proc", CgroupRoot: "/sys/fs/cgroup", ContainerGlob: opts.containers, API: client}), source
+	return collect.New(collect.Options{
+		ProcRoot: "/proc", CgroupRoot: "/sys/fs/cgroup", ContainerGlob: opts.containers, API: client,
+		HistoryPath: collect.HistoryPath(os.Getenv),
+	}), source
 }
 
 func apiClient(opts options) (*github.Client, string) {

@@ -13,6 +13,8 @@ const (
 	StatusBusy    = "busy"
 	StatusIdle    = "idle"
 	StatusOffline = "offline"
+	// StatusStarting is a runner whose processes are gone for now, like a one-job runner whose container is being replaced.
+	StatusStarting = "starting"
 
 	ConclusionSuccess   = "success"
 	ConclusionFailure   = "failure"
@@ -33,6 +35,15 @@ type Duration time.Duration
 
 func (d Duration) MarshalJSON() ([]byte, error) {
 	return strconv.AppendFloat(nil, time.Duration(d).Round(time.Millisecond).Seconds(), 'f', -1, 64), nil
+}
+
+func (d *Duration) UnmarshalJSON(data []byte) error {
+	seconds, err := strconv.ParseFloat(string(data), 64)
+	if err != nil {
+		return err
+	}
+	*d = Duration(seconds * float64(time.Second))
+	return nil
 }
 
 type Snapshot struct {
@@ -114,6 +125,7 @@ type Job struct {
 	PR         int       `json:"pr,omitempty"`
 	StartedAt  time.Time `json:"startedAt,omitzero"`
 	Steps      []Step    `json:"steps,omitempty"`
+	StepCount  int       `json:"stepCount,omitempty"`
 	Expected   Duration  `json:"expected,omitempty"`
 	Source     string    `json:"source"`
 }
@@ -129,6 +141,7 @@ type Step struct {
 type Result struct {
 	RunnerID string `json:"runnerId"`
 	Runner   string `json:"runner"`
+	Scope    string `json:"scope,omitempty"`
 	Job
 	Conclusion string    `json:"conclusion"`
 	FinishedAt time.Time `json:"finishedAt,omitzero"`
@@ -146,6 +159,19 @@ func (j *Job) CurrentStep() string {
 		return "Set up job"
 	}
 	return ""
+}
+
+// StepProgress counts the job's own steps. Post steps come after all of them, so they leave done at total.
+func (j *Job) StepProgress() (done, total int) {
+	if j.Source == SourceAPI {
+		for i, step := range j.Steps {
+			if step.Status != StepPending {
+				done = i + 1
+			}
+		}
+		return done, len(j.Steps)
+	}
+	return min(len(j.Steps), j.StepCount), j.StepCount
 }
 
 func (j *Job) HasMetadata() bool { return j.Repo != "" }

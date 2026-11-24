@@ -16,11 +16,13 @@ import (
 )
 
 const (
-	patternStep    = "StepsRunner] Processing step: DisplayName="
-	patternResult  = "Job result after all job steps finish: "
-	patternVersion = "Listener] Version: "
-	patternLabels  = "Adding option 'labels': "
-	patternArch    = "Runner is built for Linux ("
+	patternStep   = "StepsRunner] Processing step: DisplayName="
+	patternResult = "Job result after all job steps finish: "
+	// patternStepResult ends both "Update job result with" and "No need for updating job result with" in StepsRunner.cs.
+	patternStepResult = "with current step result '"
+	patternVersion    = "Listener] Version: "
+	patternLabels     = "Adding option 'labels': "
+	patternArch       = "Runner is built for Linux ("
 )
 
 type runnerFile struct {
@@ -117,8 +119,9 @@ var githubContextKeys = map[string]bool{
 // jobMessage holds only the whitelisted fields. Everything else in the message,
 // secrets included, is skipped by the decoder and never kept.
 type jobMessage struct {
-	JobDisplayName string `json:"jobDisplayName"`
-	JobID          string `json:"jobId"`
+	JobDisplayName string     `json:"jobDisplayName"`
+	JobID          string     `json:"jobId"`
+	Steps          []struct{} `json:"steps"`
 	ContextData    struct {
 		GitHub struct {
 			D []struct {
@@ -148,10 +151,14 @@ func ParseJobMessage(head []byte) (state.Job, error) {
 		msg = salvaged
 	}
 	gh := map[string]string{}
+	title := ""
 	for _, kv := range msg.ContextData.GitHub.D {
 		var value string
 		if githubContextKeys[kv.K] && json.Unmarshal(kv.V, &value) == nil {
 			gh[kv.K] = clean(value)
+		}
+		if kv.K == "event" {
+			title = eventTitle(kv.V)
 		}
 	}
 	job := state.Job{
@@ -163,6 +170,8 @@ func ParseJobMessage(head []byte) (state.Job, error) {
 		Actor:      gh["actor"],
 		SHA:        gh["sha"],
 		BaseBranch: gh["base_ref"],
+		Title:      title,
+		StepCount:  len(msg.Steps),
 		Source:     state.SourceDiag,
 	}
 	job.RunID, _ = strconv.ParseInt(gh["run_id"], 10, 64)
@@ -175,11 +184,50 @@ func ParseJobMessage(head []byte) (state.Job, error) {
 	return job, nil
 }
 
+// eventTitle is what GitHub shows as the run title: the PR title, the pushed commit's subject, or the title of the run that triggered this one.
+func eventTitle(event json.RawMessage) string {
+	for _, path := range [][]string{{"pull_request", "title"}, {"head_commit", "message"}, {"workflow_run", "display_title"}} {
+		if text := contextString(event, path...); text != "" {
+			subject, _, _ := strings.Cut(text, "\n")
+			return clean(strings.TrimSpace(subject))
+		}
+	}
+	return ""
+}
+
+// contextString walks a runner context dictionary ({"t":2,"d":[{"k":…,"v":…}]}) down keys to a string.
+func contextString(raw json.RawMessage, keys ...string) string {
+	for _, key := range keys {
+		var dict struct {
+			D []struct {
+				K string          `json:"k"`
+				V json.RawMessage `json:"v"`
+			} `json:"d"`
+		}
+		if json.Unmarshal(raw, &dict) != nil {
+			return ""
+		}
+		raw = nil
+		for _, kv := range dict.D {
+			if kv.K == key {
+				raw = kv.V
+				break
+			}
+		}
+	}
+	var text string
+	if json.Unmarshal(raw, &text) != nil {
+		return ""
+	}
+	return text
+}
+
 // salvageJobMessage decodes only the kept fields: the runner masks secrets after writing, and a mask can eat a closing quote.
 func salvageJobMessage(body []byte) (jobMessage, bool) {
 	var msg jobMessage
 	found := decodeAfter(body, `"jobDisplayName":`, &msg.JobDisplayName)
 	decodeAfter(body, `"jobId":`, &msg.JobID)
+	decodeAfter(body, `"steps":`, &msg.Steps)
 	if i := bytes.Index(body, []byte(`"contextData":`)); i >= 0 {
 		decodeAfter(body[i:], `"github":`, &msg.ContextData.GitHub)
 	}
@@ -222,6 +270,11 @@ func ParseSteps(lines []string) stepsAndResult {
 			out.Steps = append(out.Steps, state.Step{Name: clean(strings.Trim(name, "'")), Status: state.StepInProgress, StartedAt: at})
 			continue
 		}
+		if _, raw, found := strings.Cut(message, patternStepResult); found && len(out.Steps) > 0 {
+			raw, _, _ = strings.Cut(raw, "'")
+			out.Steps[len(out.Steps)-1].Conclusion = Conclusion(clean(raw))
+			continue
+		}
 		if _, raw, found := strings.Cut(message, patternResult); found {
 			out.closeLastStep(at)
 			out.Conclusion = Conclusion(clean(strings.TrimSpace(raw)))
@@ -246,6 +299,8 @@ func Conclusion(raw string) string {
 		return state.ConclusionFailure
 	case "Canceled":
 		return state.ConclusionCancelled
+	case "Skipped":
+		return "skipped"
 	}
 	return raw
 }

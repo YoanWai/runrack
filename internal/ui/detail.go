@@ -18,12 +18,16 @@ func Detail(v View, snap state.Snapshot, key string, now time.Time) string {
 	right := t.Dim.Render("esc back   ") + t.Text.Render(now.In(v.Loc).Format("15:04:05")) + " "
 	lines := []string{spread(" "+t.Title.Render("runrack")+t.Dim.Render(" "+g.Sep+" ")+t.Text.Render(r.Name), right, v.Width, g.More)}
 	if r.Job != nil {
-		lines = append(lines, jobBox(v, r, now)...)
+		lines = append(lines, jobBox(v, r.Job, busyBadge(v, now.Sub(r.Job.StartedAt)), busyStatus(v, r, now))...)
 	}
-	steps := stepLines(v, r.Job, now)
-	runner := runnerBlock(v, r)
 	left := max(v.Width/2-2, 30)
-	lines = append(lines, pad(" "+t.Title.Render("STEPS"), left)+"  "+t.Title.Render("RUNNER"))
+	steps := stepLines(v, r.Job, now, left-12)
+	runner := runnerBlock(v, r)
+	stepsHead := " " + t.Title.Render("STEPS")
+	if r.Job != nil {
+		stepsHead = stepsTitle(v, r.Job)
+	}
+	lines = append(lines, pad(stepsHead, left)+"  "+t.Title.Render("RUNNER"))
 	if r.Job == nil {
 		steps = []string{" " + t.Dim.Render("idle")}
 		if r.Status == state.StatusOffline {
@@ -50,7 +54,7 @@ func Detail(v View, snap state.Snapshot, key string, now time.Time) string {
 	if len(mine) == 0 {
 		lines = append(lines, " "+t.Dim.Render("Nothing finished in the last 24 hours."))
 	}
-	lines = append(lines, recentLines(v, mine, false, shortener(snap))...)
+	lines = append(lines, recentLines(v, mine, v.Width >= narrowRecent, shortener(snap))...)
 	if v.Height > 0 && len(lines) > v.Height {
 		lines = lines[:v.Height]
 	}
@@ -69,47 +73,33 @@ func findRunner(snap state.Snapshot, key string) (state.Runner, bool) {
 	return state.Runner{}, false
 }
 
-func jobBox(v View, r state.Runner, now time.Time) []string {
-	t, g, job := v.Theme, v.Glyphs, r.Job
-	elapsed := now.Sub(job.StartedAt)
+func jobBox(v View, job *state.Job, badge, status string) []string {
+	t, g := v.Theme, v.Glyphs
 	var body []string
 	if !job.HasMetadata() {
-		note := "starting"
-		if r.Note != "" {
-			note = r.Note
-		}
-		body = append(body, t.Dim.Render(note))
+		body = append(body, status)
 	} else {
-		body = append(body, t.Title.Render(job.Repo))
 		meta := []string{}
 		if job.RunNumber > 0 {
-			meta = append(meta, fmt.Sprintf("run #%d", job.RunNumber))
-		}
-		if job.Attempt > 0 {
-			meta = append(meta, fmt.Sprintf("attempt %d", job.Attempt))
+			meta = append(meta, "run "+runNumber(job))
 		}
 		meta = append(meta, job.Event)
 		if job.Actor != "" {
 			meta = append(meta, "by "+job.Actor)
 		}
-		body = append(body, pad(t.Text.Render(job.Workflow)+t.Dim.Render(" "+g.Sep+" ")+t.Text.Render(job.Name), 30)+t.Dim.Render(strings.Join(meta, "  ")))
-		body = append(body, t.Text.Render(branchLine(job, g))+"   "+t.Dim.Render(shortSHA(job.SHA)))
-		if job.Title != "" {
-			body = append(body, t.Text.Render(job.Title))
+		body = append(body,
+			t.Title.Render(job.Repo),
+			pad(workflowJob(v, job), 30)+"  "+t.Dim.Render(strings.Join(meta, "  ")),
+			t.Text.Render(trigger(job, g)),
+			t.Dim.Render(strings.TrimSpace(branchLine(job, g)+"   "+shortSHA(job.SHA))),
+			status,
+		)
+		if job.URL != "" {
+			body = append(body, t.Dim.Render(job.URL))
 		}
 	}
-	progress := t.Text.Render(clock(elapsed))
-	if job.Expected > 0 {
-		expected := time.Duration(job.Expected)
-		progress = bar(float64(elapsed)/float64(expected), 30, g, t.Busy, t.Dim) + " " + t.Text.Render(clock(elapsed)) + t.Dim.Render(" / ~"+clock(expected))
-	}
-	body = append(body, progress)
-	if job.URL != "" {
-		body = append(body, t.Dim.Render(job.URL))
-	}
-	title := busyBadge(v, elapsed)
 	w := v.Width
-	top := t.Border.Render(g.TopLeft+g.Horizontal) + " " + title + " " + t.Border.Render(strings.Repeat(g.Horizontal, max(w-5-width(title)-1, 0))+g.TopRight)
+	top := t.Border.Render(g.TopLeft+g.Horizontal) + " " + badge + " " + t.Border.Render(strings.Repeat(g.Horizontal, max(w-5-width(badge)-1, 0))+g.TopRight)
 	lines := []string{top}
 	for _, line := range body {
 		lines = append(lines, t.Border.Render(g.Vertical)+" "+pad(fit(line, w-4, g.More), w-4)+" "+t.Border.Render(g.Vertical))
@@ -117,9 +107,31 @@ func jobBox(v View, r state.Runner, now time.Time) []string {
 	return append(lines, t.Border.Render(g.BottomLeft+strings.Repeat(g.Horizontal, w-2)+g.BottomRight))
 }
 
+// busyStatus is the progress line of a running job, or what it waits for before the job message arrives.
+func busyStatus(v View, r state.Runner, now time.Time) string {
+	t, g, job := v.Theme, v.Glyphs, r.Job
+	if !job.HasMetadata() {
+		note := "starting"
+		if r.Note != "" {
+			note = r.Note
+		}
+		return t.Dim.Render(note)
+	}
+	elapsed := now.Sub(job.StartedAt)
+	progress := t.Text.Render(clock(elapsed))
+	if job.Expected > 0 {
+		expected := time.Duration(job.Expected)
+		progress = bar(float64(elapsed)/float64(expected), 30, g, t.Busy, t.Dim) + " " + t.Text.Render(clock(elapsed)) + t.Dim.Render(" / ~"+clock(expected))
+	}
+	if step := stepText(v, job); step != "" {
+		progress += "   " + step
+	}
+	return progress
+}
+
 func shortSHA(sha string) string { return sha[:min(7, len(sha))] }
 
-func stepLines(v View, job *state.Job, now time.Time) []string {
+func stepLines(v View, job *state.Job, now time.Time, maxName int) []string {
 	if job == nil {
 		return nil
 	}
@@ -127,6 +139,11 @@ func stepLines(v View, job *state.Job, now time.Time) []string {
 	if len(job.Steps) == 0 {
 		return []string{" " + t.Busy.Render(g.Step) + " " + t.Text.Render("Set up job")}
 	}
+	nameW := 0
+	for _, step := range job.Steps {
+		nameW = max(nameW, width(shortRefs(step.Name)))
+	}
+	nameW = min(nameW, maxName)
 	var lines []string
 	for _, step := range job.Steps {
 		took := time.Duration(step.Duration)
@@ -147,7 +164,7 @@ func stepLines(v View, job *state.Job, now time.Time) []string {
 		if step.Status != state.StepPending {
 			durationText = clock(took)
 		}
-		lines = append(lines, " "+glyph+" "+pad(fit(t.Text.Render(step.Name), 30, g.More), 31)+t.Dim.Render(durationText))
+		lines = append(lines, " "+glyph+" "+pad(fit(t.Text.Render(shortRefs(step.Name)), nameW, g.More), nameW+2)+t.Dim.Render(durationText))
 	}
 	return lines
 }

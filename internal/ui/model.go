@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"slices"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -78,7 +80,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) ensureSelection() {
-	if _, ok := findRunner(m.snap, m.view.Selected); (!ok || !m.userMoved) && len(m.snap.Runners) > 0 {
+	_, isRunner := findRunner(m.snap, m.view.Selected)
+	_, isRun := findRun(m.snap, m.view.Selected)
+	if (!isRunner && !isRun || !m.userMoved) && len(m.snap.Runners) > 0 {
 		m.view.Selected = Order(m.snap, m.view.Width)[0][0]
 	}
 }
@@ -103,7 +107,9 @@ func (m Model) key(key string) (tea.Model, tea.Cmd) {
 	case "enter":
 		if m.screen == screenBoard && m.view.Selected != "" {
 			m.screen = screenDetail
-			m.focus(m.view.Selected)
+			if !strings.HasPrefix(m.view.Selected, runKeyPrefix) {
+				m.focus(m.view.Selected)
+			}
 		}
 	case "r":
 		if m.control != nil {
@@ -127,11 +133,23 @@ func (m *Model) focus(key string) {
 	}
 }
 
+// move walks the runner columns and then, below the last runner, the finished runs.
 func (m *Model) move(dx, dy int) {
 	if m.screen != screenBoard {
 		return
 	}
 	order := Order(m.snap, m.view.Width)
+	runs := ShownRuns(m.view, m.snap)
+	if i := slices.Index(runs, m.view.Selected); i >= 0 {
+		m.userMoved = true
+		switch {
+		case dy < 0 && i == 0 && len(order) > 0:
+			m.view.Selected = order[0][len(order[0])-1]
+		case dy != 0:
+			m.view.Selected = runs[min(max(i+dy, 0), len(runs)-1)]
+		}
+		return
+	}
 	col, row := 0, 0
 	for c, keys := range order {
 		for r, key := range keys {
@@ -144,6 +162,10 @@ func (m *Model) move(dx, dy int) {
 		return
 	}
 	m.userMoved = true
+	if dy > 0 && row == len(order[col])-1 && len(runs) > 0 {
+		m.view.Selected = runs[0]
+		return
+	}
 	col = min(max(col+dx, 0), len(order)-1)
 	row = min(max(row+dy, 0), len(order[col])-1)
 	m.view.Selected = order[col][row]
@@ -159,6 +181,9 @@ func (m Model) View() tea.View {
 	switch m.screen {
 	case screenDetail:
 		content = Detail(view, m.snap, view.Selected, m.now)
+		if strings.HasPrefix(view.Selected, runKeyPrefix) {
+			content = RunDetail(view, m.snap, view.Selected, m.now)
+		}
 	case screenHelp:
 		content = Help(view)
 	default:

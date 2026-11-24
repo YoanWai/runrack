@@ -97,11 +97,63 @@ func TestContainerStoppingMidJobEndsUnknown(t *testing.T) {
 	r.SetCurrent(key, 92911, Job{ID: "j1", Name: "check", Repo: "acme/widgets", Workflow: "CI"})
 	r.Observe(nil, t0.Add(time.Minute))
 	snap := r.Snapshot(t0.Add(time.Minute))
-	if len(snap.Runners) != 0 || len(snap.Recent) != 1 {
+	if len(snap.Runners) != 1 || snap.Runners[0].Status != StatusStarting || snap.Runners[0].Job != nil || len(snap.Recent) != 1 {
 		t.Fatalf("snap = %+v", snap)
 	}
-	if got := snap.Recent[0]; got.Conclusion != ConclusionUnknown || got.Duration != Duration(time.Minute) || got.Runner != "zenbook-acme-1" {
+	if got := snap.Recent[0]; got.Conclusion != ConclusionUnknown || got.Duration != Duration(time.Minute) || got.Runner != "zenbook-acme-1" || got.Scope != "acme" {
 		t.Fatalf("result = %+v", got)
+	}
+	r.Observe(nil, t0.Add(time.Minute+startingFor+time.Second))
+	if runners := r.Snapshot(t0).Runners; len(runners) != 0 {
+		t.Fatalf("a runner gone past startingFor must leave: %+v", runners)
+	}
+}
+
+func TestOneJobRunnerComesBackWithItsHistory(t *testing.T) {
+	r := NewReducer()
+	r.Restore([]Result{finished("saved", ConclusionSuccess, t0.Add(-time.Hour), time.Minute)})
+	r.Restore([]Result{finished("saved", ConclusionSuccess, t0.Add(-time.Hour), time.Minute)})
+	saved, _ := r.History()
+	saved[0].Runner = "zenbook-acme-1"
+	r = NewReducer()
+	r.Restore(saved)
+	r.Observe([]Presence{presence(0, true)}, t0)
+	r.SetInfo(key, Info{Name: "zenbook-acme-1", Scope: "acme"})
+	got := onlyRunner(t, r, t0)
+	if got.Last == nil || got.Last.ID != "saved" {
+		t.Fatalf("last job from saved history: %+v", got.Last)
+	}
+	_, before := r.History()
+	r.AddResults(key, []Result{finished("saved", ConclusionSuccess, t0, time.Minute)})
+	if history, after := r.History(); len(history) != 1 || after != before {
+		t.Fatalf("a restored job must not land twice: %d results, changes %d to %d", len(history), before, after)
+	}
+}
+
+func TestDurationRoundTrip(t *testing.T) {
+	want := Duration(90*time.Second + 250*time.Millisecond)
+	data, err := want.MarshalJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got Duration
+	if err := got.UnmarshalJSON(data); err != nil || got != want {
+		t.Fatalf("got %v %v, want %v", time.Duration(got), err, time.Duration(want))
+	}
+}
+
+func TestStepProgress(t *testing.T) {
+	local := Job{Source: SourceDiag, StepCount: 3, Steps: make([]Step, 2)}
+	if done, total := local.StepProgress(); done != 2 || total != 3 {
+		t.Fatalf("local %d/%d", done, total)
+	}
+	local.Steps = make([]Step, 5)
+	if done, total := local.StepProgress(); done != 3 || total != 3 {
+		t.Fatalf("post steps %d/%d", done, total)
+	}
+	api := Job{Source: SourceAPI, Steps: []Step{{Status: StepCompleted}, {Status: StepInProgress}, {Status: StepPending}}}
+	if done, total := api.StepProgress(); done != 2 || total != 3 {
+		t.Fatalf("api %d/%d", done, total)
 	}
 }
 

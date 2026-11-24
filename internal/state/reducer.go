@@ -9,7 +9,11 @@ import (
 	"github.com/YoanWai/runrack/internal/scan"
 )
 
-const recentCap = 60
+const (
+	recentCap = 60
+	// startingFor covers a one-job runner between its container being deleted and its replacement registering.
+	startingFor = 3 * time.Minute
+)
 
 type Presence struct {
 	Key         string
@@ -45,6 +49,7 @@ type APIJob struct {
 type entry struct {
 	runner    Runner
 	workerPID int
+	goneAt    time.Time
 }
 
 type recentItem struct {
@@ -65,6 +70,7 @@ type Reducer struct {
 	apiJobs    map[RunAttempt][]APIJob
 	runTitles  map[int64]string
 	api        bool
+	changes    int
 }
 
 func NewReducer() *Reducer {
@@ -91,6 +97,7 @@ func (r *Reducer) Observe(presences []Presence, now time.Time) map[string]Job {
 			e = &entry{runner: Runner{Key: p.Key, ID: p.Provider + "/" + targetOf(p.Placement) + "/" + p.Name, Provider: p.Provider, Name: p.Name}}
 			r.runners[p.Key] = e
 		}
+		e.goneAt = time.Time{}
 		e.runner.Placement = p.Placement
 		e.runner.Service = p.Service
 		if p.WorkerPID != e.workerPID {
@@ -118,8 +125,14 @@ func (r *Reducer) Observe(presences []Presence, now time.Time) map[string]Job {
 		}
 		if e.runner.Job != nil {
 			r.EndJob(key, *e.runner.Job, ConclusionUnknown, now)
+			e.runner.Job, e.workerPID = nil, 0
 		}
-		delete(r.runners, key)
+		if e.goneAt.IsZero() {
+			e.goneAt, e.runner.Status, e.runner.Container = now, StatusStarting, nil
+		}
+		if now.Sub(e.goneAt) > startingFor {
+			delete(r.runners, key)
+		}
 	}
 	return ended
 }
@@ -176,8 +189,9 @@ func (r *Reducer) AddResults(key string, results []Result) {
 			continue
 		}
 		r.seen[result.ID] = result.FinishedAt
+		r.changes++
 		if e, ok := r.runners[key]; ok {
-			result.RunnerID, result.Runner = e.runner.ID, e.runner.Name
+			result.RunnerID, result.Runner, result.Scope = e.runner.ID, e.runner.Name, e.runner.Scope
 		}
 		r.recent = append(r.recent, recentItem{key: key, result: result})
 		jobKey := expectedKey(result.Job)
@@ -191,6 +205,28 @@ func (r *Reducer) AddResults(key string, results []Result) {
 	}
 	slices.SortStableFunc(r.recent, func(a, b recentItem) int { return b.result.FinishedAt.Compare(a.result.FinishedAt) })
 	r.recent = r.recent[:min(recentCap, len(r.recent))]
+}
+
+// Restore puts saved results back into Recent, so history survives a restart and deleted containers.
+func (r *Reducer) Restore(results []Result) {
+	for _, result := range results {
+		if _, seen := r.seen[result.ID]; seen || result.ID == "" {
+			continue
+		}
+		r.seen[result.ID] = result.FinishedAt
+		r.recent = append(r.recent, recentItem{result: result})
+	}
+	slices.SortStableFunc(r.recent, func(a, b recentItem) int { return b.result.FinishedAt.Compare(a.result.FinishedAt) })
+	r.recent = r.recent[:min(recentCap, len(r.recent))]
+}
+
+// History is Recent as saved, with a counter that moves whenever a result lands.
+func (r *Reducer) History() ([]Result, int) {
+	results := make([]Result, len(r.recent))
+	for i, item := range r.recent {
+		results[i] = item.result
+	}
+	return results, r.changes
 }
 
 func (r *Reducer) dropUnknown(id string) bool {
@@ -280,7 +316,7 @@ func (r *Reducer) Snapshot(now time.Time) Snapshot {
 	})
 	for _, item := range r.recent {
 		result := item.result
-		if e, ok := r.runners[item.key]; ok {
+		if e, ok := r.runners[item.key]; ok && item.key != "" {
 			result.RunnerID, result.Runner = e.runner.ID, e.runner.Name
 		}
 		snap.Recent = append(snap.Recent, result)
@@ -292,6 +328,17 @@ func (r *Reducer) Snapshot(now time.Time) Snapshot {
 	return snap
 }
 
+// lastByName finds a runner's last job after its entry was replaced, such as a one-job runner in a new container.
+func (r *Reducer) lastByName(name string) *Result {
+	for _, item := range r.recent {
+		if item.result.Runner == name {
+			last := item.result
+			return &last
+		}
+	}
+	return nil
+}
+
 func rank(r Runner) int {
 	if r.Status == StatusBusy {
 		return 0
@@ -301,6 +348,9 @@ func rank(r Runner) int {
 
 func (r *Reducer) view(e *entry) Runner {
 	runner := e.runner
+	if runner.Last == nil {
+		runner.Last = r.lastByName(runner.Name)
+	}
 	if runner.Last != nil {
 		last := *runner.Last
 		last.RunnerID, last.Runner = runner.ID, runner.Name

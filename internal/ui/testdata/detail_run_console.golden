@@ -1,0 +1,15 @@
+ [1;37mrunrack[m[37m > [m[37macme/widgets[m[37m > [m[37mCI[m[37m > [m[37mcheck[m                                                                [37mesc back   [m[37m17:42:07[m 
+[37m┌─[m [1;31mx FAILURE[m  [37m0:55[m [37m───────────────────────────────────────────────────────────────────────────────────────────────────┐[m
+[37m│[m [1;37macme/widgets[m                                                                                                         [37m│[m
+[37m│[m [37mCI[m[37m > [m[37mcheck[m                      [37mrun #15  pull_request  by octocat[m                                                    [37m│[m
+[37m│[m [37mPR #14 fix: homelab runner labels[m                                                                                    [37m│[m
+[37m│[m [37mci/homelab-runner → main[m                                                                                             [37m│[m
+[37m│[m [37mfinished [m[37mMon 23 Nov 17:35[m[37m (7m ago)[m[37m on [m[37mzenbook-acme-3[m                                                                 [37m│[m
+[37m│[m [37mhttps://github.com/acme/widgets/actions/runs/45229100015[m                                                             [37m│[m
+[37m└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘[m
+ [1;37mSTEPS[m[37m  4 of 4[m
+ [32m√[m [37mRun actions/checkout@3d3c42e[m       [37m0:02[m
+ [32m√[m [37mRun actions/setup-node@v5[m          [37m0:09[m
+ [32m√[m [37mRun npm ci[m                         [37m0:21[m
+ [1;31mx[m [37mRun npm test[m                       [37m0:22[m
+ [32m√[m [37mPost Run actions/checkout@3d3c42e[m  [37m0:00[m

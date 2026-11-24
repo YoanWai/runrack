@@ -1,19 +1,20 @@
  [1mrunrack[m > zenbook-acme-1                                                                           esc back   17:42:07 
 +- [1m BUSY 2:31 [m -------------------------------------------------------------------------------------------------------+
 | [1macme/widgets[m                                                                                                         |
-| CI > check                    run #16  attempt 1  pull_request  by octocat                                           |
-| PR #14  ci/homelab-runner -> main   c0a9cbb                                                                          |
-| fix: homelab runner labels                                                                                           |
-| [1m########################[m...... 2:31 / ~3:10                                                                          |
+| CI > check                      run #16  pull_request  by octocat                                                    |
+| PR #14 fix: homelab runner labels                                                                                    |
+| ci/homelab-runner -> main   c0a9cbb                                                                                  |
+| [1m########################[m...... 2:31 / ~3:10   [1m>[m 4/5 Run npm ci                                                       |
 | https://github.com/acme/widgets/actions/runs/45229190085                                                             |
 +----------------------------------------------------------------------------------------------------------------------+
- [1mSTEPS[m                                                      [1mRUNNER[m
- + Set up job                     0:03                      unit       actions.runner.acme.zenbook-acme-1
- + Run actions/checkout@v5        0:02                      where      incus runner-acme-1
- + Run actions/setup-node@v5      0:09                      version    2.338.2
- [1m>[m Run npm ci                     2:17                      labels     self-hosted, Linux, X64, homelab
+ [1mSTEPS[m  4 of 5                                              [1mRUNNER[m
+ + Set up job                 0:03                          unit       actions.runner.acme.zenbook-acme-1
+ + Run actions/checkout@v5    0:02                          where      incus runner-acme-1
+ + Run actions/setup-node@v5  0:09                          version    2.338.2
+ [1m>[m Run npm ci                 2:17                          labels     self-hosted, Linux, X64, homelab
  . Run npm test                                             container  cpu 61%  mem 1.9G  procs 212
                                                             github     online, busy
 
  [1mRECENT ON THIS RUNNER[m
- 17:12  +  widgets  CI > check  main  1:58
+ 17:12  + success  widgets  CI > check  1:58  acme-1
+                   push to main - chore: bump node to 24 - by octocat - #13

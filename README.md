@@ -6,7 +6,7 @@ A live board of the CI runners on this machine. Which runners exist, whether the
 
 runrack works with no token and no configuration. It reads what the runners already leave on the machine: processes, systemd units, cgroups and the runner's own `_diag` logs. With a GitHub token it adds GitHub's view: online state, labels, the full step list and the run title.
 
-It never changes anything. No start, stop, restart, register or cleanup, and no files written.
+It never changes anything. No start, stop, restart, register or cleanup. The one file it writes is its own list of finished jobs, so history survives a restart and runners whose container is deleted after each job.
 
 ## Supported runners
 
@@ -52,7 +52,18 @@ runrack --demo          # a made-up rack, to try it without runners
 | `--timeout 10s` | time limit for `--json`, `--once` and `doctor` |
 | `--width N` | board width for `--once` |
 
-Keys: arrows or `hjkl` move, `enter` opens a runner, `esc` goes back, `r` refreshes every source and retries the API, `?` shows the legend, `q` quits.
+Keys: arrows or `hjkl` move (down from the last runner walks into RECENT), `enter` opens a runner or a finished run, `esc` goes back, `r` refreshes every source and retries the API, `?` shows the legend, `q` quits.
+
+## What each run shows
+
+| Where | What |
+|---|---|
+| busy runner | elapsed time, repository, workflow and job, then the trigger (`PR #14` and its title, or `push to main` and the commit subject, `manual on main`, `scheduled on main`), who started it and the run number, then progress against the last run of the same job and the current step as `4/9 Run npm ci` |
+| idle runner | result, age, workflow and job of its last run, and the repository when it fits |
+| RECENT row | finish time, result, repository, workflow and job, duration, runner and the step that failed, then the trigger, who started it and the run number |
+| `enter` on a runner or a RECENT row | everything above plus event, branch and base, commit, run attempt, every step with its result and duration, and the link to the run on GitHub |
+
+Finished jobs are kept in `$XDG_STATE_HOME/runrack/history.json` (default `~/.local/state/runrack/history.json`, private to the user), up to the last 60.
 
 `--json` prints a `runrack.snapshot/v1` document with RFC 3339 UTC times and durations in seconds. Fields are only ever added within v1.
 
@@ -67,10 +78,10 @@ Keys: arrows or `hjkl` move, `enter` opens a runner, `esc` goes back, `r` refres
 | `/sys/fs/cgroup/lxc.payload.<container>/cpu.stat` and `memory.current` | container CPU and memory | every 5 seconds |
 | `<runner>/.runner` | runner name, id and GitHub scope | once per runner start |
 | `<runner>/_diag/Runner_*.log` | runner version and configured labels | once per runner start |
-| `<runner>/_diag/Worker_*.log` | repository, workflow, job, branch, actor, steps and result | when a job starts, every 3 seconds while it runs, every minute for history |
+| `<runner>/_diag/Worker_*.log` | repository, workflow, job, branch, actor, PR title or commit subject, steps with their results, and result | when a job starts, every 3 seconds while it runs, every minute for history |
 | `/proc/loadavg`, `/proc/stat`, `/proc/meminfo` | host load strip | every 2 seconds |
 
-Inside containers runrack runs `incus exec <container> -- head|ls|grep|systemctl ...` with a fixed argument list. Inside tmux it asks `tmux display-message` which terminal the client runs in. Every command goes through one allowlist, and runrack never reads `.credentials`, `.credentials_rsaparams`, `.env` or `.path`. On the host it refuses to follow symlinks in runner directories. Text from logs and the API is stripped of control characters before it reaches the screen. From the Worker log's job message it keeps only the repository, workflow, run, ref, event, actor and commit fields. Everything else in that message, masked secrets included, is skipped by the JSON decoder and never stored or printed.
+Inside containers runrack runs `incus exec <container> -- head|ls|grep|systemctl ...` with a fixed argument list. Inside tmux it asks `tmux display-message` which terminal the client runs in. Every command goes through one allowlist, and runrack never reads `.credentials`, `.credentials_rsaparams`, `.env` or `.path`. On the host it refuses to follow symlinks in runner directories. Text from logs and the API is stripped of control characters before it reaches the screen. From the Worker log's job message it keeps only the repository, workflow, run, ref, event, actor and commit fields, the PR title or the pushed commit's subject, and the number of steps. Everything else in that message, masked secrets included, is skipped by the JSON decoder and never stored or printed.
 
 ## Permissions
 

@@ -13,6 +13,7 @@ import (
 var GrepPatterns = []string{
 	"StepsRunner] Processing step: DisplayName=",
 	"Job result after all job steps finish: ",
+	"with current step result '",
 	"Listener] Version: ",
 	"Adding option 'labels': ",
 	"Runner is built for Linux (",

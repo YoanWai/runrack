@@ -45,6 +45,7 @@ type Options struct {
 	CgroupRoot    string
 	ContainerGlob string
 	API           *github.Client
+	HistoryPath   string
 }
 
 type schedule struct {
@@ -84,6 +85,7 @@ type Engine struct {
 	lastHostRead      time.Time
 	lastContainerRead time.Time
 	warm              bool
+	savedChanges      int
 
 	once    bool
 	pending sync.WaitGroup
@@ -99,6 +101,11 @@ type cpuSample struct {
 func New(opts Options) *Engine {
 	red := state.NewReducer()
 	red.SetAPIEnabled(opts.API != nil)
+	if opts.HistoryPath != "" {
+		saved, err := loadHistory(opts.HistoryPath)
+		red.SetSource("history", err, time.Now())
+		red.Restore(saved)
+	}
 	return &Engine{
 		opts:       opts,
 		provider:   github.New(),
@@ -154,6 +161,7 @@ func (e *Engine) Run(ctx context.Context, out chan state.Snapshot) {
 			if e.warm {
 				publish(out, e.red.Snapshot(now))
 			}
+			e.saveHistory(now)
 		}
 	}
 }
@@ -182,6 +190,18 @@ func (e *Engine) settled() bool {
 		}
 	}
 	return true
+}
+
+func (e *Engine) saveHistory(now time.Time) {
+	recent, changes := e.red.History()
+	if e.opts.HistoryPath == "" || changes == e.savedChanges {
+		return
+	}
+	err := saveHistory(e.opts.HistoryPath, recent)
+	e.red.SetSource("history", err, now)
+	if err == nil {
+		e.savedChanges = changes
+	}
 }
 
 func publish(out chan state.Snapshot, snap state.Snapshot) {

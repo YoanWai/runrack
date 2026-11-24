@@ -7,7 +7,7 @@ runrack ships with the GitHub Actions provider. These notes collect what other r
 - Processes: `Runner.Listener run` is the runner, a `Runner.Worker` child is the running job.
 - Unit: `actions.runner.<scope>.<name>.service`, `WorkingDirectory` is the runner root.
 - Identity: `<root>/.runner` (JSON with a UTF-8 BOM): `agentName`, `agentId`, `gitHubUrl`.
-- Jobs: `<root>/_diag/Worker_YYYYMMDD-HHMMSS-utc.log`. The `Job message:` JSON has the job name and `contextData.github`. Steps are `StepsRunner] Processing step: DisplayName='...'` lines and the result is `Job result after all job steps finish: Succeeded|Failed|Canceled`.
+- Jobs: `<root>/_diag/Worker_YYYYMMDD-HHMMSS-utc.log`. The `Job message:` JSON has the job name and `contextData.github`. Steps are `StepsRunner] Processing step: DisplayName='...'` lines, each followed by `with current step result 'Succeeded|Failed|Skipped|Canceled'`, and the result is `Job result after all job steps finish: Succeeded|Failed|Canceled`.
 - API: `/orgs/{org}/actions/runners`, `/repos/{repo}/actions/runs/{id}/attempts/{n}/jobs`.
 
 ## GitLab Runner

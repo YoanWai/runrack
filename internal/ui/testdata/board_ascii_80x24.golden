@@ -1,14 +1,14 @@
  [1mrunrack[m  homelab      [1m* 2 busy[m   o 4 idle   x 0 offline               17:42:07 
 
 +- [1macme[m ----------------------------------------------------------- 3 runners -+
-| [1m*[m [1;7macme-1[m    [1m BUSY 2:31 [m                                                      |
-|   widgets  CI > check  [1m>[m Run npm ci                                          |
+| [1m*[m [1;7macme-1[m    [1m BUSY 2:31 [m  [1mwidgets[m  CI > check                                 |
+|             [1m>[m 4/5 Run npm ci                                                 |
 | o [1macme-2[m     idle  + success     36m  CI > check   widgets                   |
 | o [1macme-3[m     idle  [1mx failure[m      7m  CI > check   widgets                   |
 +------------------------------------------------------------------------------+
 +- [1mglobex[m --------------------------------------------------------- 3 runners -+
-| [1m*[m [1mglobex-3[m  [1m BUSY 0:12 [m                                                      |
-|   site  CI > check  [1m>[m Set up job                                             |
+| [1m*[m [1mglobex-3[m  [1m BUSY 0:12 [m  [1msite[m  CI > check                                    |
+|             [1m>[m Set up job                                                     |
 | o [1mglobex-1[m   idle  + success      8m  CI > check   site                      |
 | o [1mglobex-2[m   idle  - cancelled   51m  CI > build   site                      |
 +------------------------------------------------------------------------------+

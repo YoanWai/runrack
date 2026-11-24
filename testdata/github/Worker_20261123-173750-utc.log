@@ -53,6 +53,26 @@
        "condition": "success()",
        "id": "0b1f0a8e-0d11-4c2d-9e3f-2a1b0c9d8e7f",
        "name": "__actions_checkout"
+     },
+     {
+       "type": "action",
+       "reference": {
+         "type": "script"
+       },
+       "contextName": "__run_2",
+       "condition": "success()",
+       "id": "0b1f0a8e-0d11-4c2d-9e3f-2a1b0c9d8e02",
+       "name": "__run_2"
+     },
+     {
+       "type": "action",
+       "reference": {
+         "type": "script"
+       },
+       "contextName": "__run_3",
+       "condition": "success()",
+       "id": "0b1f0a8e-0d11-4c2d-9e3f-2a1b0c9d8e03",
+       "name": "__run_3"
      }
    ],
    "variables": {
@@ -222,12 +242,24 @@
              "t": 2,
              "d": [
                {
-                 "k": "action",
-                 "v": "synchronize"
+                 "k": "head_commit",
+                 "v": {
+                   "t": 2,
+                   "d": [
+                     {
+                       "k": "id",
+                       "v": "4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f"
+                     },
+                     {
+                       "k": "message",
+                       "v": "chore: scan history for secrets\n\nThe body stays off the board."
+                     }
+                   ]
+                 }
                },
                {
-                 "k": "number",
-                 "v": 14.0
+                 "k": "ref",
+                 "v": "refs/heads/main"
                }
              ]
            }

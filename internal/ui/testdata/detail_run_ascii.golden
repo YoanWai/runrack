@@ -1,0 +1,15 @@
+ [1mrunrack[m > acme/widgets > CI > check                                                                esc back   17:42:07 
++- [1mx FAILURE[m  0:55 ---------------------------------------------------------------------------------------------------+
+| [1macme/widgets[m                                                                                                         |
+| CI > check                      run #15  pull_request  by octocat                                                    |
+| PR #14 fix: homelab runner labels                                                                                    |
+| ci/homelab-runner -> main                                                                                            |
+| finished Mon 23 Nov 17:35 (7m ago) on zenbook-acme-3                                                                 |
+| https://github.com/acme/widgets/actions/runs/45229100015                                                             |
++----------------------------------------------------------------------------------------------------------------------+
+ [1mSTEPS[m  4 of 4
+ + Run actions/checkout@3d3c42e       0:02
+ + Run actions/setup-node@v5          0:09
+ + Run npm ci                         0:21
+ [1mx[m Run npm test                       0:22
+ + Post Run actions/checkout@3d3c42e  0:00
