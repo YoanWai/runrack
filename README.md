@@ -1,6 +1,6 @@
 # runrack
 
-A live board of the CI runners on this machine. Which runners exist, whether they are idle or busy, what each one is running right now, how the last jobs ended, and how loaded the host is. Built to sit full screen on a TV attached to a home server, and just as happy in any terminal.
+A live board of the CI runners on this machine. Which runners exist, whether they are idle or busy, what each one is running right now, how the last jobs ended, and how loaded the host is. Runs in any terminal, over SSH, inside tmux, or full screen on a Linux console.
 
 ![runrack showing two groups of runners, recent results and host load](docs/demo.gif)
 
@@ -97,7 +97,7 @@ Inside containers runrack runs `incus exec <container> -- head|ls|grep|systemctl
   - Runs and jobs: fine-grained "Actions: read", or classic `repo`.
   - When an endpoint answers 401, 403 or 404 it stays off for 15 minutes, or until you press `r`. A rate limit only slows the polling down.
 
-## Run it on a TV console
+## Run it full screen on the Linux console
 
 runrack lays out to the terminal size, from 80x24 up to a 4K console (240x67 with the 16x32 Terminus font). On the Linux console, or in tmux attached to it, `auto` picks the console glyph set and the 16 color profile. To force them:
 
@@ -107,12 +107,12 @@ runrack --glyphs console --color 16
 
 The console set only uses symbols that the kernel's default map and Terminus console fonts can draw. Colors stay within the 8 base colors, because a 512 glyph console font (such as `Uni2-TerminusBold32x16`) spends the bright bit on glyphs. That is also why a busy runner gets a filled badge: yellow text turns brown there. A 256 glyph font such as `Lat15-TerminusBold32x16` gives the full 16 colors back.
 
-To start it on boot, run it as a service that owns tty1. No login shell is involved, so a missing binary leaves a failed service instead of an open shell on the TV keyboard:
+To start it on boot, run it as a service that owns tty1. No login shell is involved, so a missing binary leaves a failed service instead of an open shell on the console keyboard:
 
 ```ini
-# /etc/systemd/system/runrack-tv.service
+# /etc/systemd/system/runrack-console.service
 [Unit]
-Description=runrack on the TV
+Description=runrack on tty1
 After=getty@tty1.service
 Conflicts=getty@tty1.service
 
@@ -134,7 +134,7 @@ WantedBy=multi-user.target
 
 ```sh
 sudo systemctl daemon-reload
-sudo systemctl enable --now runrack-tv
+sudo systemctl enable --now runrack-console
 ```
 
 ![runrack board in a truecolor terminal](docs/board.png)

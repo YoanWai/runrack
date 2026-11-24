@@ -9,7 +9,7 @@ import (
 	"github.com/YoanWai/runrack/internal/state"
 )
 
-// selectionTimeout hides the selection on an untouched TV.
+// selectionTimeout hides the selection on an untouched screen.
 const selectionTimeout = 60 * time.Second
 
 type Controller interface {

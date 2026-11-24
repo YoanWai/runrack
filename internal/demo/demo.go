@@ -54,7 +54,7 @@ func World(start, now time.Time) state.Snapshot {
 		result("zenbook-acme-2", "acme/widgets", "check", state.ConclusionSuccess, at(-36*time.Minute), 121*time.Second,
 			state.Job{Event: "schedule", Branch: "main", RunNumber: 12}),
 		result("zenbook-globex-2", "globex/site", "build", state.ConclusionCancelled, at(-51*time.Minute), 130*time.Second,
-			state.Job{Event: "pull_request", Branch: "feat/tv-layout", BaseBranch: "main", PR: 31, Title: "feat: TV layout", RunNumber: 86}),
+			state.Job{Event: "pull_request", Branch: "feat/compact-layout", BaseBranch: "main", PR: 31, Title: "feat: compact layout", RunNumber: 86}),
 		result("zenbook-globex-2", "globex/site", "build", state.ConclusionFailure, at(-62*time.Minute), 141*time.Second,
 			state.Job{Event: "workflow_dispatch", Branch: "main", RunNumber: 85, Attempt: 2}),
 	}

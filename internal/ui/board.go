@@ -533,7 +533,7 @@ func conclusionGlyph(v View, conclusion string) (string, lipgloss.Style) {
 
 func (v View) selected(r state.Runner) bool { return v.ShowSelection && r.Key == v.Selected }
 
-// nameRow keeps the status next to the name, so the eye does not travel across a wide TV.
+// nameRow keeps the status next to the name, so the eye does not travel across a wide screen.
 func nameRow(v View, r state.Runner, right string, w int, plan cards) string {
 	shown := plan.names.runner(r.Name)
 	name := v.Theme.Title.Render(shown)

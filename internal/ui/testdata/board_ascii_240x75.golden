@@ -18,7 +18,7 @@
    17:12  + success    widgets  CI > check  1:58  acme-1    #13
  scheduled on main - by octocat
    17:06  + success    widgets  CI > check  2:01  acme-2    #12
- PR #31 feat: TV layout - by octocat
+ PR #31 feat: compact layout - by octocat
    16:51  - cancelled  site     CI > build  2:10  globex-2  #86
  manual on main - by octocat
    16:40  [1mx failure[m    site     CI > build  2:21  globex-2  #85 attempt 2
