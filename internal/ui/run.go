@@ -54,21 +54,28 @@ func trigger(job *state.Job, g Glyphs) string {
 	return text
 }
 
-// whyParts are the second line of a run: trigger, who started it and its run number.
-func whyParts(job *state.Job, g Glyphs) []string {
+// causeParts are the trigger of a run and who started it.
+func causeParts(job *state.Job, g Glyphs) []string {
 	parts := []string{trigger(job, g)}
 	if job.Actor != "" {
 		parts = append(parts, "by "+job.Actor)
 	}
+	return parts
+}
+
+// whyParts are the second line of a running job: its cause and its run number.
+func whyParts(job *state.Job, g Glyphs) []string {
+	parts := causeParts(job, g)
 	if job.RunNumber > 0 {
 		parts = append(parts, runNumber(job))
 	}
 	return parts
 }
 
-func runWhy(v View, job *state.Job) string {
+func runWhy(v View, job *state.Job) string { return dotted(v, whyParts(job, v.Glyphs)) }
+
+func dotted(v View, parts []string) string {
 	t := v.Theme
-	parts := whyParts(job, v.Glyphs)
 	line := t.Text.Render(parts[0])
 	for _, part := range parts[1:] {
 		line += t.Dim.Render(" " + v.Glyphs.Dot + " " + part)

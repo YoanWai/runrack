@@ -64,6 +64,14 @@ func age(d time.Duration) string {
 	return fmt.Sprintf("%dd", int(d.Hours()/24))
 }
 
+// ago reads as a phrase next to a finished job, like "12m ago".
+func ago(d time.Duration) string {
+	if d < time.Minute {
+		return "just now"
+	}
+	return age(d) + " ago"
+}
+
 func uptime(d time.Duration) string {
 	days, hours := int(d.Hours())/24, int(d.Hours())%24
 	if days > 0 {

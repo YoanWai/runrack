@@ -1,26 +1,27 @@
  [1mrunrack[m  homelab                                                                                      [1m* 2 busy[m   o 4 idle   x 0 offline                                                                                   Mon 23 Nov  17:42:07 
+ A runner takes one CI job at a time.   [1m* busy[m on a job now   o idle waiting for the next job   x offline not running
 
-+- [1macme[m -------------------------------------------------------------------------------------------------- 3 runners -+ +- [1mglobex[m ------------------------------------------------------------------------------------------------ 3 runners -+
-| [1m*[m [1;7macme-1[m    [1m BUSY 2:31 [m  [1mwidgets[m  CI > check                                                                        | | [1m*[m [1mglobex-3[m  [1m BUSY 0:12 [m  [1msite[m  CI > check                                                                           |
++- [1macme[m ----------------------------------------------------------------------- 3 runners - 3 jobs in 24h - 1 failed -+ +- [1mglobex[m --------------------------------------------------------------------- 3 runners - 3 jobs in 24h - 1 failed -+
+| [1m*[m [1;7macme-1[m    [1m BUSY 2:31 [m  [1mwidgets[m  CI > check                                                    cpu [1m 61%[m  mem  1.9G | | [1m*[m [1mglobex-3[m  [1m BUSY 0:12 [m  [1msite[m  CI > check                                                       cpu  34%  mem  1.2G |
 |             PR #14 fix: homelab runner labels - by octocat - #16                                                    | |             push to main - feat: dark mode for the status page - by octocat - #88                                   |
 |             [1m################[m.... 2:31 / ~3:10   [1m>[m 4/5 Run npm ci                                                    | |             0:12   [1m>[m Set up job                                                                                     |
-| o [1macme-2[m     idle  + success     36m  CI > check   widgets                                                          | | o [1mglobex-1[m   idle  + success      8m  CI > check   site                                                             |
-| o [1macme-3[m     idle  [1mx failure[m      7m  CI > check   widgets                                                          | | o [1mglobex-2[m   idle  - cancelled   51m  CI > build   site                                                             |
+| o [1macme-2[m     idle  last + success     36m ago  [1mwidgets[m  CI > check                              cpu   1%  mem  0.4G | | o [1mglobex-1[m   idle  last + success      8m ago  [1msite[m     CI > check                              cpu   1%  mem  0.4G |
+| o [1macme-3[m     idle  last [1mx failure[m      7m ago  [1mwidgets[m  CI > check                              cpu   2%  mem  0.5G | | o [1mglobex-2[m   idle  last - cancelled   51m ago  [1msite[m     CI > build                              cpu   0%  mem  0.4G |
 +---------------------------------------------------------------------------------------------------------------------+ +---------------------------------------------------------------------------------------------------------------------+
 
  [1mRECENT[m  + 3   [1mx 2[m   - 1  ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- 17:35  [1mx failure[m    widgets  CI > check  0:55  acme-3    [1m> Run npm test[m
-                     PR #14 fix: homelab runner labels - by octocat - #15
- 17:34  + success    site     CI > check  1:36  globex-1
-                     push to main - docs: tidy the install guide - by octocat - #87
- 17:12  + success    widgets  CI > check  1:58  acme-1
-                     push to main - chore: bump node to 24 - by octocat - #13
- 17:06  + success    widgets  CI > check  2:01  acme-2
-                     scheduled on main - by octocat - #12
- 16:51  - cancelled  site     CI > build  2:10  globex-2
-                     PR #31 feat: TV layout - by octocat - #86
- 16:40  [1mx failure[m    site     CI > build  2:21  globex-2
-                     manual on main - by octocat - #85 attempt 2
+ PR #14 fix: homelab runner labels - by octocat
+   17:35  [1mx failure[m    widgets  CI > check  0:55  acme-3    #15  [1m> Run npm test[m
+ push to main - docs: tidy the install guide - by octocat
+   17:34  + success    site     CI > check  1:36  globex-1  #87
+ push to main - chore: bump node to 24 - by octocat
+   17:12  + success    widgets  CI > check  1:58  acme-1    #13
+ scheduled on main - by octocat
+   17:06  + success    widgets  CI > check  2:01  acme-2    #12
+ PR #31 feat: TV layout - by octocat
+   16:51  - cancelled  site     CI > build  2:10  globex-2  #86
+ manual on main - by octocat
+   16:40  [1mx failure[m    site     CI > build  2:21  globex-2  #85 attempt 2
 
 
 
@@ -71,5 +72,4 @@
 
  [1mHOST[m -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  cpu  23% ##........   mem 6.1/15.0G ####......   load 3.21 2.80 2.10 /16   up 4d 2h
- acme-1    61%  1.9G   acme-2     1%  0.4G   acme-3     2%  0.5G   globex-3  34%  1.2G   globex-1   1%  0.4G   globex-2   0%  0.4G
  hjkl select  enter detail  r refresh  ? help  q quit                                                                                                                                                              local + api   updated 0s ago 

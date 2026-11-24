@@ -56,11 +56,15 @@ Keys: arrows or `hjkl` move (down from the last runner walks into RECENT), `ente
 
 ## What each run shows
 
+A wide board opens with one line that says what a runner is and what busy, idle and offline mean.
+
 | Where | What |
 |---|---|
 | busy runner | elapsed time, repository, workflow and job, then the trigger (`PR #14` and its title, or `push to main` and the commit subject, `manual on main`, `scheduled on main`), who started it and the run number, then progress against the last run of the same job and the current step as `4/9 Run npm ci` |
-| idle runner | result, age, workflow and job of its last run, and the repository when it fits |
-| RECENT row | finish time, result, repository, workflow and job, duration, runner and the step that failed, then the trigger, who started it and the run number |
+| idle runner | how its last job went: result, how long ago it ended, repository, workflow and job |
+| every runner row | CPU and memory of its container, when the container runs that one runner and the row has room |
+| group title | number of runners, jobs finished in the last 24 hours and how many of them failed |
+| RECENT | runs that share a trigger sit under one heading with the trigger and who started it. Each row has finish time, result, repository, workflow and job, duration, runner, run number and the step that failed |
 | `enter` on a runner or a RECENT row | everything above plus event, branch and base, commit, run attempt, every step with its result and duration, and the link to the run on GitHub |
 
 Finished jobs are kept in `$XDG_STATE_HOME/runrack/history.json` (default `~/.local/state/runrack/history.json`, private to the user), up to the last 60.

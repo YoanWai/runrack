@@ -16,5 +16,5 @@
                                                             github     online, busy
 
  [1mRECENT ON THIS RUNNER[m
- 17:12  + success  widgets  CI > check  1:58  acme-1
-                   push to main - chore: bump node to 24 - by octocat - #13
+ push to main - chore: bump node to 24 - by octocat
+   17:12  + success  widgets  CI > check  1:58  acme-1  #13

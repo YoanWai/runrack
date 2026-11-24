@@ -1,16 +1,16 @@
  [1;37mrunrack[m  [37mhomelab[m      [1;33m■ 2 busy[m   [32m· 4 idle[m   [37m▼ 0 offline[m               [37m17:42:07[m 
 
-[37m┌─[m [1;36macme[m [37m───────────────────────────────────────────────────────────[m [37m3 runners[m [37m─┐[m
+[37m┌─[m [1;36macme[m [37m────────────────────────────────[m [37m3 runners · 3 jobs in 24h · 1 failed[m [37m─┐[m
 [37m│[m [1;33m■[m [1;7;37macme-1[m    [1;30;43m BUSY 2:31 [m  [1;37mwidgets[m  [37mCI[m[37m > [m[37mcheck[m                                 [37m│[m
 [37m│[m             [1;33m>[m [37m4/5[m [37mRun npm ci[m                                                 [37m│[m
-[37m│[m [32m·[m [1;37macme-2[m     [32midle[m  [32m√ success[m    [37m 36m[m  [37mCI > check[m   [37mwidgets[m                   [37m│[m
-[37m│[m [32m·[m [1;37macme-3[m     [32midle[m  [1;31mx failure[m    [37m  7m[m  [37mCI > check[m   [37mwidgets[m                   [37m│[m
+[37m│[m [32m·[m [1;37macme-2[m     [32midle[m  [37mlast [m[32m√ success[m    [37m 36m ago[m  [1;37mwidgets[m  [37mCI > check[m           [37m│[m
+[37m│[m [32m·[m [1;37macme-3[m     [32midle[m  [37mlast [m[1;31mx failure[m    [37m  7m ago[m  [1;37mwidgets[m  [37mCI > check[m           [37m│[m
 [37m└──────────────────────────────────────────────────────────────────────────────┘[m
-[37m┌─[m [1;36mglobex[m [37m─────────────────────────────────────────────────────────[m [37m3 runners[m [37m─┐[m
+[37m┌─[m [1;36mglobex[m [37m──────────────────────────────[m [37m3 runners · 3 jobs in 24h · 1 failed[m [37m─┐[m
 [37m│[m [1;33m■[m [1;37mglobex-3[m  [1;30;43m BUSY 0:12 [m  [1;37msite[m  [37mCI[m[37m > [m[37mcheck[m                                    [37m│[m
 [37m│[m             [1;33m>[m [37mSet up job[m                                                     [37m│[m
-[37m│[m [32m·[m [1;37mglobex-1[m   [32midle[m  [32m√ success[m    [37m  8m[m  [37mCI > check[m   [37msite[m                      [37m│[m
-[37m│[m [32m·[m [1;37mglobex-2[m   [32midle[m  [35m- cancelled[m  [37m 51m[m  [37mCI > build[m   [37msite[m                      [37m│[m
+[37m│[m [32m·[m [1;37mglobex-1[m   [32midle[m  [37mlast [m[32m√ success[m    [37m  8m ago[m  [1;37msite[m     [37mCI > check[m           [37m│[m
+[37m│[m [32m·[m [1;37mglobex-2[m   [32midle[m  [37mlast [m[35m- cancelled[m  [37m 51m ago[m  [1;37msite[m     [37mCI > build[m           [37m│[m
 [37m└──────────────────────────────────────────────────────────────────────────────┘[m
 
  [1;37mRECENT[m  [32m√ 3[m   [1;31mx 2[m   [35m- 1[m  [37m─────────────────────────────────────────────────────[m

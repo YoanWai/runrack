@@ -16,8 +16,9 @@ const (
 	compactBelow = 80
 	narrowRecent = 100
 	minCardWidth = 56
-	// idleWidth covers " idle", the conclusion, the age of the last job and the gaps between them.
-	idleWidth      = 26
+	// idleWidth covers " idle", "last", the conclusion, how long ago the last job ended and the gaps between them.
+	idleWidth      = 37
+	usageWidth     = len("cpu 100%  mem 12.3G")
 	cardChrome     = 8
 	busyBadgeWidth = len(" BUSY 0:00 ")
 )
@@ -32,9 +33,10 @@ type View struct {
 }
 
 type group struct {
-	scope   string
-	index   int
-	runners []state.Runner
+	scope        string
+	index        int
+	runners      []state.Runner
+	jobs, failed int // finished in the window snap.Recent covers
 }
 
 func groups(snap state.Snapshot) []group {
@@ -48,6 +50,17 @@ func groups(snap state.Snapshot) []group {
 			out = append(out, group{scope: scope, index: len(out)})
 		}
 		out[len(out)-1].runners = append(out[len(out)-1].runners, r)
+	}
+	for i := range out {
+		for _, res := range snap.Recent {
+			if res.Scope != out[i].scope {
+				continue
+			}
+			out[i].jobs++
+			if res.Conclusion == state.ConclusionFailure {
+				out[i].failed++
+			}
+		}
 	}
 	return out
 }
@@ -96,9 +109,11 @@ func (s short) repo(repo string) string {
 func (s short) runner(name string) string { return strings.TrimPrefix(name, s.prefix) }
 
 type cards struct {
-	names              short
-	nameW, jobW, busyW int
-	columns            int
+	names                     short
+	nameW, repoW, jobW, busyW int
+	columns                   int
+	// inline holds the containers whose load sits on their runner's own row, because they run that one runner.
+	inline map[string]bool
 }
 
 // planCards puts groups side by side only while every card still shows each runner's last job in full.
@@ -107,6 +122,7 @@ func planCards(snap state.Snapshot, groupCount, w int) cards {
 	for _, r := range snap.Runners {
 		c.nameW = max(c.nameW, width(c.names.runner(r.Name))+noteWidth(r))
 		if r.Last != nil {
+			c.repoW = max(c.repoW, width(c.names.repo(r.Last.Repo)))
 			c.jobW = max(c.jobW, width(jobLabel(r.Last.Workflow, r.Last.Name, ">")))
 		}
 		if r.Status == state.StatusBusy && r.Job != nil && r.Job.HasMetadata() {
@@ -115,12 +131,34 @@ func planCards(snap state.Snapshot, groupCount, w int) cards {
 			c.busyW = max(c.busyW, head, why)
 		}
 	}
-	need := max(cardChrome+c.nameW+max(idleWidth+c.jobW, c.busyW), minCardWidth)
+	need := max(cardChrome+c.nameW+max(idleWidth+c.repoW+2+c.jobW, c.busyW), minCardWidth)
+	// A card only carries the load of its runners when a full idle row still fits beside it.
+	if own := ownContainers(snap); len(own) > 0 && w >= need+usageWidth+2 {
+		c.inline = own
+		need += usageWidth + 2
+	}
 	c.columns = max(min((w+1)/(need+1), maxColumns, groupCount), 1)
 	if w < compactBelow {
 		c.columns = 1
 	}
 	return c
+}
+
+// ownContainers are the Incus containers that hold exactly one runner and report their load.
+func ownContainers(snap state.Snapshot) map[string]bool {
+	runners := map[string]int{}
+	for _, r := range snap.Runners {
+		if r.Placement.Kind == scan.KindIncus {
+			runners[r.Placement.Container]++
+		}
+	}
+	own := map[string]bool{}
+	for _, r := range snap.Runners {
+		if r.Placement.Kind == scan.KindIncus && r.Container != nil && runners[r.Placement.Container] == 1 {
+			own[r.Placement.Container] = true
+		}
+	}
+	return own
 }
 
 func noteWidth(r state.Runner) int {
@@ -166,13 +204,17 @@ func groupHeight(g group, compact bool) int {
 }
 
 func runnerHeight(r state.Runner, compact bool) int {
+	note := 0
+	if r.Note != "" && !compact {
+		note = 1
+	}
 	switch {
 	case r.Status != state.StatusBusy || r.Job == nil:
-		return 1
+		return 1 + note
 	case !r.Job.HasMetadata() || compact:
-		return 2
+		return 2 + note
 	}
-	return 3
+	return 3 + note
 }
 
 func Order(snap state.Snapshot, w int) [][]string {
@@ -206,7 +248,8 @@ func layoutBoard(v View, snap state.Snapshot, now time.Time) boardParts {
 	}
 	host := hostLines(v, snap, 0)
 	board := boardLines(v, snap, now, false)
-	room := func() int { return v.Height - 7 - len(host) - recentLines } // header, blanks, titles and footer
+	top := len(legendLines(v))
+	room := func() int { return v.Height - 7 - top - len(host) - recentLines } // header, blanks, titles and footer
 	if v.Height > 0 && len(board) > room() {
 		board = boardLines(v, snap, now, true)
 		if len(board) > room() {
@@ -218,10 +261,10 @@ func layoutBoard(v View, snap state.Snapshot, now time.Time) boardParts {
 	bottom = append(bottom, footer(v, snap, now))
 	parts := boardParts{board: board, bottom: bottom, recentRows: len(snap.Recent), wide: wide}
 	if v.Height > 0 {
-		room := v.Height - 4 - len(bottom) - len(board)
+		room := v.Height - 4 - top - len(bottom) - len(board)
 		used := 0
-		for i, res := range snap.Recent {
-			used += runHeight(res, parts.wide)
+		for i := range snap.Recent {
+			used += runHeight(snap.Recent, i, parts.wide)
 			if used > max(room, recentLines) {
 				parts.recentRows = i
 				break
@@ -231,11 +274,39 @@ func layoutBoard(v View, snap state.Snapshot, now time.Time) boardParts {
 	return parts
 }
 
-func runHeight(res state.Result, wide bool) int {
-	if wide && res.HasMetadata() {
+// cause is why a run exists and who started it. Runs that share it sit under one heading.
+func cause(job *state.Job, g Glyphs) string {
+	return strings.Join(causeParts(job, g), "\x00")
+}
+
+// startsCause reports whether run i opens a new heading on a wide board.
+func startsCause(results []state.Result, i int, g Glyphs) bool {
+	if !results[i].HasMetadata() {
+		return false
+	}
+	return i == 0 || !results[i-1].HasMetadata() || cause(&results[i-1].Job, g) != cause(&results[i].Job, g)
+}
+
+func runHeight(results []state.Result, i int, wide bool) int {
+	if wide && startsCause(results, i, ASCIIGlyphs) {
 		return 2
 	}
 	return 1
+}
+
+// legendLines says what a runner is and what the three states mean, on boards with room for it.
+func legendLines(v View) []string {
+	if v.Width < narrowRecent || (v.Height > 0 && v.Height < 30) {
+		return nil
+	}
+	t, g := v.Theme, v.Glyphs
+	entry := func(style lipgloss.Style, glyph, name, meaning string) string {
+		return style.Render(glyph+" "+name) + t.Dim.Render(" "+meaning)
+	}
+	return []string{" " + t.Dim.Render("A runner takes one CI job at a time.") + "   " +
+		entry(t.Busy, g.Busy, "busy", "on a job now") + "   " +
+		entry(t.Idle, g.Idle, "idle", "waiting for the next job") + "   " +
+		entry(t.Offline, g.Offline, "offline", "not running")}
 }
 
 // ShownRuns are the keys of the finished runs the board has room for, top to bottom.
@@ -249,7 +320,8 @@ func ShownRuns(v View, snap state.Snapshot) []string {
 
 func Board(v View, snap state.Snapshot, now time.Time) string {
 	parts := layoutBoard(v, snap, now)
-	lines := append([]string{header(v, snap, now), ""}, parts.board...)
+	lines := append([]string{header(v, snap, now)}, legendLines(v)...)
+	lines = append(append(lines, ""), parts.board...)
 	lines = append(lines, "", sectionTitle(v, "RECENT", recentTally(v, snap.Recent)))
 	switch {
 	case snap.TakenAt.IsZero():
@@ -383,12 +455,12 @@ func groupBox(v View, g group, w int, now time.Time, compact bool, plan cards) [
 	for _, r := range g.runners {
 		body = append(body, runnerLines(v, r, inner, now, compact, plan)...)
 	}
-	count := fmt.Sprintf("%d runner", len(g.runners))
-	if len(g.runners) != 1 {
-		count += "s"
+	count := groupSummary(g, gl)
+	if width(count) > w-8-4 {
+		count = runnerCount(g)
 	}
-	title := fit(g.scope, max(w-8-len(count), 4), gl.More)
-	fill := w - 8 - width(title) - len(count)
+	title := fit(g.scope, max(w-8-width(count), 4), gl.More)
+	fill := w - 8 - width(title) - width(count)
 	if fill < 1 {
 		count, fill = "", w-6-width(title)
 	}
@@ -404,6 +476,26 @@ func groupBox(v View, g group, w int, now time.Time, compact bool, plan cards) [
 	}
 	bottom := t.Border.Render(gl.BottomLeft + strings.Repeat(gl.Horizontal, w-2) + gl.BottomRight)
 	return append(lines, bottom)
+}
+
+func runnerCount(g group) string {
+	if len(g.runners) == 1 {
+		return "1 runner"
+	}
+	return fmt.Sprintf("%d runners", len(g.runners))
+}
+
+// groupSummary adds how many jobs the group finished in the window the board keeps, and how many failed.
+func groupSummary(g group, gl Glyphs) string {
+	summary := runnerCount(g)
+	if g.jobs == 0 {
+		return summary
+	}
+	summary += fmt.Sprintf(" %s %d jobs in 24h", gl.Dot, g.jobs)
+	if g.failed > 0 {
+		summary += fmt.Sprintf(" %s %d failed", gl.Dot, g.failed)
+	}
+	return summary
 }
 
 func statusGlyph(v View, r state.Runner) string {
@@ -453,27 +545,51 @@ func busyBadge(v View, elapsed time.Duration) string {
 }
 
 func runnerLines(v View, r state.Runner, w int, now time.Time, compact bool, plan cards) []string {
+	lines := stateLines(v, r, w, now, compact, plan)
+	lines[0] = withUsage(v, r, lines[0], w, plan)
+	if r.Note != "" && !compact {
+		lines = append(lines, strings.Repeat(" ", plan.nameW+4)+v.Theme.Failure.Render("! "+r.Note))
+	}
+	return lines
+}
+
+func stateLines(v View, r state.Runner, w int, now time.Time, compact bool, plan cards) []string {
 	t := v.Theme
+	room := w
+	if plan.inline[r.Placement.Container] {
+		room -= usageWidth + 2
+	}
 	switch {
 	case r.Status == state.StatusOffline:
-		return []string{nameRow(v, r, t.Offline.Render("offline  "+r.Service), w, plan)}
+		return []string{nameRow(v, r, t.Offline.Render("offline  "+r.Service), room, plan)}
 	case r.Status == state.StatusStarting:
-		return []string{nameRow(v, r, t.Dim.Render(" starting"), w, plan)}
+		return []string{nameRow(v, r, t.Dim.Render(" starting"), room, plan)}
 	case r.Status != state.StatusBusy || r.Job == nil:
-		return []string{nameRow(v, r, idleRight(v, r, now, plan, w), w, plan)}
+		return []string{nameRow(v, r, idleRight(v, r, now, plan), room, plan)}
 	}
 	job := r.Job
 	indent := strings.Repeat(" ", plan.nameW+4)
 	head := busyBadge(v, now.Sub(job.StartedAt))
 	if !job.HasMetadata() {
-		return []string{nameRow(v, r, head, w, plan), indent + busyStatus(v, r, now)}
+		return []string{nameRow(v, r, head, room, plan), indent + busyStatus(v, r, now)}
 	}
 	head += "  " + t.Title.Render(plan.names.repo(job.Repo)) + "  " + workflowJob(v, job)
-	lines := []string{nameRow(v, r, head, w, plan)}
+	lines := []string{nameRow(v, r, head, room, plan)}
 	if compact {
 		return append(lines, indent+stepText(v, job))
 	}
 	return append(lines, indent+runWhy(v, job), indent+cardProgress(v, job, w-plan.nameW-4, now))
+}
+
+// withUsage puts the load of a runner's own container at the right edge of its first line.
+func withUsage(v View, r state.Runner, line string, w int, plan cards) string {
+	if !plan.inline[r.Placement.Container] || r.Container == nil {
+		return line
+	}
+	t := v.Theme
+	usage := t.Dim.Render("cpu ") + loadStyle(t, r.Container.CPUPct).Render(fmt.Sprintf("%3.0f%%", r.Container.CPUPct)) +
+		t.Dim.Render("  mem ") + t.Text.Render(fmt.Sprintf("%5s", gib(r.Container.MemBytes)))
+	return spread(line, usage, w, v.Glyphs.More)
 }
 
 func cardProgress(v View, job *state.Job, w int, now time.Time) string {
@@ -498,22 +614,21 @@ func branchLine(job *state.Job, g Glyphs) string {
 	return job.Branch
 }
 
-// idleRight adds the repo of the last job only when it fits whole.
-func idleRight(v View, r state.Runner, now time.Time, plan cards, w int) string {
+// idleRight says how the runner's last job went: its result, when it ended, the repo and the job, in the order a busy row uses.
+func idleRight(v View, r state.Runner, now time.Time, plan cards) string {
 	t := v.Theme
 	right := " " + t.Idle.Render("idle") // lines up with the text of the busy badge
 	if r.Last == nil {
-		return right
+		return right + "  " + t.Dim.Render("no job in the last 24h")
 	}
 	last := r.Last
 	glyph, style := conclusionGlyph(v, last.Conclusion)
-	right += "  " + pad(style.Render(glyph+" "+last.Conclusion), 11) + "  " +
-		t.Dim.Render(fmt.Sprintf("%4s", age(now.Sub(last.FinishedAt)))) + "  " +
-		pad(t.Text.Render(jobLabel(last.Workflow, last.Name, v.Glyphs.Sep)), plan.jobW)
-	if repo := plan.names.repo(last.Repo); plan.nameW+4+width(right)+3+width(repo) <= w {
-		right += "   " + t.Dim.Render(repo)
+	right += "  " + t.Dim.Render("last ") + pad(style.Render(glyph+" "+last.Conclusion), 11) + "  " +
+		t.Dim.Render(fmt.Sprintf("%8s", ago(now.Sub(last.FinishedAt))))
+	if last.HasMetadata() {
+		right += "  " + pad(t.Title.Render(plan.names.repo(last.Repo)), plan.repoW)
 	}
-	return right
+	return right + "  " + t.Text.Render(jobLabel(last.Workflow, last.Name, v.Glyphs.Sep))
 }
 
 func listLine(v View, r state.Runner, w int, now time.Time, plan cards) string {
@@ -531,14 +646,15 @@ func listLine(v View, r state.Runner, w int, now time.Time, plan cards) string {
 	if r.Status == state.StatusStarting {
 		return nameRow(v, r, v.Theme.Dim.Render(" starting"), w, plan)
 	}
-	return nameRow(v, r, idleRight(v, r, now, plan, w), w, plan)
+	return nameRow(v, r, idleRight(v, r, now, plan), w, plan)
 }
 
-// recentLines sizes each column to its content and trims the widest first. Wide screens give every run a second line
-// that says why it ran; narrow ones keep one line with the branch and drop the status word and the runner.
+// recentLines sizes each column to its content and trims the widest first. Wide screens put runs that share a cause
+// under one heading that says why they ran; narrow ones keep one line with the branch and drop the status word and
+// the runner.
 func recentLines(v View, results []state.Result, wide bool, names short) []string {
 	t, g := v.Theme, v.Glyphs
-	statusW, tookW := 1, 0
+	statusW, tookW, numberW := 1, 0, 0
 	texts := make([][4]string, len(results))
 	var widths [4]int // repo, job, branch, runner
 	for i, res := range results {
@@ -549,16 +665,25 @@ func recentLines(v View, results []state.Result, wide bool, names short) []strin
 		tookW = max(tookW, len(clock(time.Duration(res.Duration))))
 		glyph, _ := conclusionGlyph(v, res.Conclusion)
 		statusW = max(statusW, width(glyph)+1+len(res.Conclusion))
+		if res.RunNumber > 0 {
+			numberW = max(numberW, len(runNumber(&res.Job)))
+		}
 	}
+	indent := " "
+	room := v.Width - 1 - 5 - tookW - 2*5
 	if wide {
 		widths[2] = 0
+		indent = "   "
+		room -= 2 + numberW + 2
 	} else {
-		statusW, widths[3] = 1, 0
+		statusW, widths[3], numberW = 1, 0, 0
 	}
-	shrinkToFit(widths[:], v.Width-1-5-statusW-tookW-2*5)
-	indent := strings.Repeat(" ", 1+5+2+statusW+2)
+	shrinkToFit(widths[:], room-statusW)
 	var lines []string
 	for i, res := range results {
+		if wide && startsCause(results, i, g) {
+			lines = append(lines, " "+dotted(v, causeParts(&res.Job, g)))
+		}
 		glyph, style := conclusionGlyph(v, res.Conclusion)
 		status := glyph
 		if wide {
@@ -578,14 +703,14 @@ func recentLines(v View, results []state.Result, wide bool, names short) []strin
 		cells = append(cells, t.Text.Render(fmt.Sprintf("%*s", tookW, clock(time.Duration(res.Duration)))))
 		if wide {
 			cells = append(cells, cell(3, t.Dim))
+			if res.RunNumber > 0 {
+				cells = append(cells, t.Dim.Render(runNumber(&res.Job)))
+			}
 			if step := failedStep(&res.Job); step != "" {
 				cells = append(cells, style.Render(g.Step+" "+step))
 			}
 		}
-		lines = append(lines, strings.TrimRight(" "+strings.Join(cells, "  "), " "))
-		if runHeight(res, wide) == 2 {
-			lines = append(lines, indent+runWhy(v, &res.Job))
-		}
+		lines = append(lines, strings.TrimRight(indent+strings.Join(cells, "  "), " "))
 	}
 	return lines
 }
@@ -642,6 +767,7 @@ func hostLines(v View, snap state.Snapshot, maxLines int) []string {
 // containerLines lays the containers out as a grid of equal cells, balanced over as few lines as fit.
 func containerLines(v View, snap state.Snapshot, maxLines int) []string {
 	t := v.Theme
+	inline := planCards(snap, len(groups(snap)), v.Width).inline
 	type usage struct {
 		name  string
 		stats *state.ContainerStats
@@ -655,7 +781,7 @@ func containerLines(v View, snap state.Snapshot, maxLines int) []string {
 			name = r.Placement.Container
 			containers = append(containers, name)
 		}
-		if seen[name] || r.Container == nil {
+		if seen[name] || r.Container == nil || inline[name] {
 			continue
 		}
 		seen[name] = true
