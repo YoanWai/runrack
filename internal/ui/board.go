@@ -685,7 +685,7 @@ func recentLines(v View, results []state.Result, wide bool, names short) []strin
 		indent = "   "
 		room -= 2 + numberW + 2
 	} else {
-		statusW, widths[3], numberW = 1, 0, 0
+		statusW, widths[3] = 1, 0
 	}
 	shrinkToFit(widths[:], room-statusW)
 	var lines []string
