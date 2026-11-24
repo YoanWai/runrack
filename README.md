@@ -129,4 +129,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Security reports go through [SECURITY.md
 
 ## License
 
-MIT
+[Apache-2.0](LICENSE)
