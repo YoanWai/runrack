@@ -133,14 +133,13 @@ func planCards(snap state.Snapshot, groupCount, w int) cards {
 		}
 	}
 	need := max(cardChrome+c.nameW+max(idleWidth+c.repoW+2+c.jobW, c.busyW), minCardWidth)
-	// A card only carries the load of its runners when a full idle row still fits beside it.
-	if own := ownContainers(snap); len(own) > 0 && w >= need+usageWidth+2 {
-		c.inline = own
-		need += usageWidth + 2
-	}
 	c.columns = max(min((w+1)/(need+1), maxColumns, groupCount), 1)
 	if w < compactBelow {
 		c.columns = 1
+	}
+	// A wide card carries the load of its runners. Always, so the numbers do not come and go with the length of a job name.
+	if (w-(c.columns-1))/c.columns >= narrowRecent {
+		c.inline = ownContainers(snap)
 	}
 	return c
 }
